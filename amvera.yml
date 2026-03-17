@@ -1,0 +1,25 @@
+<<<<<<< HEAD
+version: null
+=======
+---
+>>>>>>> 108e3186cc80f99c1c140bb4f4cc4c3f3886c051
+meta:
+  environment: python
+  toolchain:
+    name: pip
+    version: 3.11
+build:
+  requirementsPath: requirements.txt
+  useCache: false
+run:
+  persistenceMount: /data
+<<<<<<< HEAD
+  scriptName: bot.py     # ← вот это исправить
+  containerPort: 80
+  servicePort: 80
+serviceType: compute
+=======
+  command: bash run.sh
+  containerPort: 80
+  servicePort: 80
+>>>>>>> 108e3186cc80f99c1c140bb4f4cc4c3f3886c051
