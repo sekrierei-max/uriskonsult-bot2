@@ -25,10 +25,10 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.exceptions import TelegramBadRequest
 
-from config import config
+from src.core.config import config
+from src.core.logger import setup_logger
 from database import db
 from models import Article, ScheduledPost
-from logger_config import setup_logger
 
 # Настройка логирования
 logger = setup_logger('bot', config.BOT_LOG)
