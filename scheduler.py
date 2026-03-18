@@ -225,12 +225,19 @@ class PostScheduler:
 
     async def check_pending_posts(self):
         """Проверка и публикация ожидающих постов"""
-        print("🔍🔍🔍 check_pending_posts ВЫЗВАНА! 🔍🔍🔍")
+        current_time = datetime.now().strftime('%H:%M:%S')
+        print(f"🔍🔍🔍 check_pending_posts ВЫЗВАНА в {current_time}! 🔍🔍🔍")
         sys.stdout.flush()
         
         try:
             logger.debug("🔍 Checking for pending posts...")
             self.stats['last_check'] = datetime.now(self.moscow_tz)
+            
+            # Проверяем, есть ли метод get_pending_posts
+            if not hasattr(db, 'get_pending_posts'):
+                print("❌ ВНИМАНИЕ: у db нет метода get_pending_posts!")
+                sys.stdout.flush()
+                return
             
             posts = await db.get_pending_posts()
             
