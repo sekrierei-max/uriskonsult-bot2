@@ -20,25 +20,46 @@ print(f"🔴 1. Текущее время: {datetime.now()}")
 print(f"🔴 2. BOT_TOKEN из os.environ: {os.getenv('BOT_TOKEN', 'НЕТ ТОКЕНА')[:15]}...")
 print(f"🔴 3. CHANNEL_ID из os.environ: {os.getenv('CHANNEL_ID', 'НЕТ ID')}")
 print("="*60)
-import sys
 sys.stdout.flush()
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.jobstores.memory import MemoryJobStore
-from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
-from pytz import timezone
+# Пробуем импортировать APScheduler
+try:
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.triggers.interval import IntervalTrigger
+    from apscheduler.triggers.cron import CronTrigger
+    from apscheduler.jobstores.memory import MemoryJobStore
+    from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
+    from pytz import timezone
+    print("✅ APScheduler импортирован успешно")
+except Exception as e:
+    print(f"❌ ОШИБКА ИМПОРТА APScheduler: {e}")
+    sys.exit(1)
 
-from aiogram import Bot
-from aiogram.exceptions import TelegramAPIError, TelegramRetryAfter, TelegramForbiddenError
+# Пробуем импортировать aiogram
+try:
+    from aiogram import Bot
+    from aiogram.exceptions import TelegramAPIError, TelegramRetryAfter, TelegramForbiddenError
+    print("✅ Aiogram импортирован успешно")
+except Exception as e:
+    print(f"❌ ОШИБКА ИМПОРТА aiogram: {e}")
+    sys.exit(1)
 
-from config import config
-from database import db
-from logger_config import setup_logger
+# Пробуем импортировать локальные модули
+try:
+    from config import config
+    from database import db
+    from logger_config import setup_logger
+    print("✅ Локальные модули импортированы успешно")
+except Exception as e:
+    print(f"❌ ОШИБКА ИМПОРТА локальных модулей: {e}")
+    sys.exit(1)
+
+print("🔴 Все импорты выполнены, создаю логгер...")
+sys.stdout.flush()
 
 # Настройка логирования
 logger = setup_logger('scheduler', config.SCHEDULER_LOG)
+print("✅ Логгер создан")
 
 class PostScheduler:
     """Независимый планировщик постов"""
