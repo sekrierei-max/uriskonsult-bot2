@@ -566,6 +566,47 @@ async def cmd_calculator(message: Message):
     logger.info(f"User {message.from_user.id} used /calculator (ready)")
 
 # ============================================
+# КОМАНДА /help
+# ============================================
+
+@dp.message(Command("help"))
+async def cmd_help(message: Message):
+    help_text = (
+        "📋 Доступные команды:\n\n"
+        "👤 Для всех:\n"
+        "/start - Начать работу\n"
+        "/help - Это меню\n"
+        "/calculator - Калькулятор ЖКХ\n"
+        "/calculate - То же самое\n"
+        "/shop - Магазин договоров\n"
+        "/consult - Консультация\n"
+        "/free - Бесплатные документы\n"
+        "/cases - Кейсы\n\n"
+    )
+    
+    # Проверяем, является ли пользователь администратором
+    is_admin_user = message.from_user.id == config.get('ADMIN_ID', 0)
+    
+    if is_admin_user:
+        help_text += (
+            "🔰 Для администратора:\n"
+            "/admin - Войти в панель управления\n"
+            "/add_article - Добавить статью\n"
+            "/list_articles - Список статей\n"
+            "/del_article [ID] - Удалить статью\n"
+            "/edit_article [ID] - Редактировать\n"
+            "/status - Статус планировщика\n"
+            "/stats - То же, что /status\n"
+            "/republish [ID] - Перепубликовать старый пост\n"
+            "/republish_deep [ключ] - Опубликовать deep link статью\n"
+            "/old_posts - Список старых постов\n"
+            "/clear_limits - Сбросить лимиты сообщений\n"
+        )
+    
+    await message.answer(help_text)
+    logger.info(f"User {message.from_user.id} requested help")
+
+# ============================================
 # КОМАНДА /calculator (АКТУАЛЬНАЯ ВЕРСИЯ)
 # ============================================
 
@@ -610,7 +651,6 @@ async def cmd_clear_limits(message: Message, **kwargs):
 # ============================================
 # КОМАНДА /shop
 # ============================================
-
 @dp.message(Command("shop"))
 async def cmd_shop(message: Message):
     text = "🛒 **МАГАЗИН ДОГОВОРОВ**\n\nВыберите договор:"
