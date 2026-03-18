@@ -1551,7 +1551,13 @@ async def on_startup():
     
     logger.info("✅ Bot started successfully")
 
-# ВРЕМЕННЫЙ ЗАПУСК ПЛАНИРОВЩИКА ВМЕСТЕ С БОТОМ
+async def on_shutdown():  # ← ЭТА ФУНКЦИЯ ДОЛЖНА БЫТЬ ДО main()!
+    logger.info("🛑 Bot is shutting down...")
+    if hasattr(db, 'pool') and db.pool:
+        await db.pool.close()
+    await bot.session.close()
+    logger.info("👋 Bot stopped")
+
 # ПРОСТОЙ ПЛАНИРОВЩИК БЕЗ APSCHEDULER
 async def run_scheduler():
     """Простой фоновый планировщик"""
@@ -1603,12 +1609,12 @@ async def run_scheduler():
             await asyncio.sleep(10)
 
 # ============================================
-# ГЛАВНАЯ ФУНКЦИЯ ЗАПУСКА (ДОБАВЛЯЕМ ЭТО)
+# ГЛАВНАЯ ФУНКЦИЯ ЗАПУСКА
 # ============================================
 
 async def main():
     dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown)
+    dp.shutdown.register(on_shutdown)  # ← on_shutdown уже определена выше
     
     # Запускаем простой планировщик в фоне
     asyncio.create_task(run_scheduler())
