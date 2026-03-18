@@ -627,17 +627,9 @@ async def cmd_clear_limits(message: Message, **kwargs):
     logger.info(f"Message limits cleared by admin {message.from_user.id}")
 
 # ============================================
-# КОМАНДА /shop
+# КОМАНДА /shop (ИСПРАВЛЕННАЯ, БЕЗ ДУБЛИКАТОВ)
 # ============================================
 
-@dp.message(Command("shop"))
-async def cmd_shop(message: Message):
-    text = "🛒 **МАГАЗИН ДОГОВОРОВ**\n\nВыберите договор:"
-    await message.answer(text, reply_markup=get_shop_keyboard())
-    
-# ============================================
-# КОМАНДА /shop
-# ============================================
 @dp.message(Command("shop"))
 async def cmd_shop(message: Message):
     text = "🛒 **МАГАЗИН ДОГОВОРОВ**\n\nВыберите договор:"
@@ -645,6 +637,27 @@ async def cmd_shop(message: Message):
 
 # ============================================
 # КОМАНДА /free
+# ============================================
+
+@dp.message(Command("free"))
+async def cmd_free(message: Message):
+    text = "📚 **БЕСПЛАТНЫЕ ДОКУМЕНТЫ**\n\nВыберите категорию:"
+    await message.answer(text, reply_markup=get_free_categories_keyboard())
+
+# ============================================
+# КОМАНДА /cases
+# ============================================
+
+@dp.message(Command("cases"))
+async def cmd_cases(message: Message):
+    keyboard = get_cases_keyboard()
+    if keyboard:
+        await message.answer("📋 Выберите интересующий вас кейс:", reply_markup=keyboard)
+    else:
+        await message.answer("📭 Пока нет опубликованных кейсов. Скоро появятся!")
+
+# ============================================
+# КОМАНДА /consult
 # ============================================
 
 @dp.message(Command("free"))
