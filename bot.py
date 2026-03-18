@@ -848,60 +848,59 @@ async def cmd_edit_article(message: Message, **kwargs):
     await message.answer("✏️ Редактирование пока в разработке.")
 
 # ============================================
-# КОМАНДЫ СТАТУСА (с диагностикой поста #6)
+# КОМАНДЫ СТАТУСА (для тестовой БД)
 # ============================================
 
 @dp.message(Command("status", "stats"))
 @admin_only
 async def cmd_status(message: Message, **kwargs):
+    # Получаем статьи из тестовой БД
     articles = await db.get_articles_list()
-    stats = await db.get_scheduler_stats()
     total_users = len(user_message_counts)
     total_messages = sum(user_message_counts.values())
     
-    # Получаем информацию о посте #6 через существующие методы db
-    # Вместо прямого обращения к db.pool используем методы database.py
+    # Для тестовой БД используем заглушку статистики
+    stats = await db.get_scheduler_stats()
+    
+    # Ищем статью #6 в списке статей
     post_6 = None
-    all_posts = []
-    
-    # Используем существующий метод для получения постов
-    pending_posts = await db.get_pending_posts()
-    for post in pending_posts:
-        if post['article_id'] == 6:
-            post_6 = post
-    
-    # Получаем все статьи для информации
-    articles_list = await db.get_articles_list()
+    for article in articles:
+        if article['id'] == 6:
+            post_6 = article
+            break
     
     text = (
-        f"📊 **Статус системы**\n\n"
-        f"📚 **Статьи:**\n"
-        f"• Всего статей в базе: {len(articles)}\n\n"
-        f"⏳ **Планировщик:**\n"
+        f"📊 **Статус системы (ТЕСТОВЫЙ РЕЖИМ)**\n\n"
+        f"📚 **Статьи в памяти:**\n"
+        f"• Всего статей: {len(articles)}\n\n"
+        f"⏳ **Планировщик (тестовый):**\n"
         f"• Ожидают публикации: {stats['pending']}\n"
         f"• Уже опубликовано: {stats['published']}\n"
-        f"• Ошибок при публикации: {stats['failed']}\n\n"
+        f"• Ошибок: {stats['failed']}\n\n"
         f"👥 **Консультации:**\n"
-        f"• Активных пользователей сегодня: {total_users}\n"
-        f"• Всего сообщений сегодня: {total_messages}\n\n"
-        f"🔍 **Статья #6:**\n"
+        f"• Активных пользователей: {total_users}\n"
+        f"• Всего сообщений: {total_messages}\n\n"
     )
     
     if post_6:
         text += (
-            f"✅ **Пост найден!**\n"
-            f"• ID поста: {post_6['id']}\n"
-            f"• Тип: {post_6['post_type']}\n"
-            f"• Время: {post_6['scheduled_time']}\n"
-            f"• Статус: {post_6['status']}\n"
+            f"🔍 **Статья #6 найдена:**\n"
+            f"• ID: {post_6['id']}\n"
+            f"• Текст: {post_6['full_text'][:50]}...\n"
+            f"• Время публикации: {post_6.get('teaser_time', 'не указано')}\n"
         )
-        if post_6.get('fail_reason'):
-            text += f"• ❌ Ошибка: {post_6['fail_reason']}\n"
     else:
-        text += f"❌ Пост для статьи #6 не найден в scheduled_posts\n\n"
+        text += f"🔍 **Статья #6 не найдена**\n\n"
+    
+    if articles:
+        text += f"📋 **Все статьи:**\n"
+        for article in articles:
+            text += f"• ID {article['id']}: {article['full_text'][:30]}...\n"
+    else:
+        text += f"📭 Статей пока нет"
     
     await message.answer(text)
-    logger.info(f"Admin {message.from_user.id} requested status with diagnostics")
+    logger.info(f"Admin {message.from_user.id} requested status (test DB)")
 
 # ============================================
 # КОМАНДА /republish
