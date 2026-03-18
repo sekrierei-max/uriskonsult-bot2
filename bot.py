@@ -1613,18 +1613,58 @@ async def run_scheduler():
 # ============================================
 
 async def main():
+    """Основная функция запуска бота с улучшенной обработкой ошибок"""
+    
+    # Регистрация обработчиков жизненного цикла
     dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown)  # ← on_shutdown уже определена выше!
+    dp.shutdown.register(on_shutdown)
     
-    # Запускаем простой планировщик в фоне
-    asyncio.create_task(run_scheduler())
+    # Проверяем, что планировщик запускается только один раз
+    # Проверяем, есть ли уже запущенная задача планировщика
+    scheduler_task = None
+    for task in asyncio.all_tasks():
+        if task.get_name() == "scheduler_task":
+            scheduler_task = task
+            logger.info("⚠️ Задача планировщика уже существует, перезапуск не требуется")
+            break
     
-    await dp.start_polling(bot)
+    if not scheduler_task:
+        # Запускаем простой планировщик в фоне с уникальным именем
+        scheduler_task = asyncio.create_task(run_scheduler(), name="scheduler_task")
+        logger.info("✅ Задача планировщика создана и запущена")
+    
+    # Логируем успешный запуск
+    logger.info("🚀 Бот готов к работе. Начинаем polling...")
+    logger.info(f"👤 Администратор: {config['ADMIN_ID']}")
+    logger.info(f"📢 Канал: {config['CHANNEL_ID']}")
+    
+    # Запускаем бота с обработкой возможных ошибок
+    try:
+        await dp.start_polling(bot)
+    except Exception as e:
+        logger.critical(f"❌ Критическая ошибка при запуске polling: {e}")
+        raise
+    finally:
+        logger.info("🛑 Polling завершён")
 
 if __name__ == "__main__":
     try:
+        # Проверяем, не запущен ли уже экземпляр бота
+        logger.info("🔵 Запуск бота...")
+        
+        # Запускаем основную функцию
         asyncio.run(main())
+        
     except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
+        logger.info("🟡 Бот остановлен пользователем (Ctrl+C)")
+    except RuntimeError as e:
+        if "Event loop is closed" in str(e):
+            logger.warning("⚠️ Цикл событий уже закрыт, пропускаем")
+        else:
+            logger.exception(f"🔴 Ошибка выполнения: {e}")
     except Exception as e:
-        logger.exception(f"Fatal error: {e}")
+        logger.exception(f"🔴 Непредвиденная фатальная ошибка: {e}")
+        # Здесь можно добавить код для уведомления администратора
+        # Например, отправить сообщение через другого бота или email
+    finally:
+        logger.info("⚫ Бот полностью остановлен")
