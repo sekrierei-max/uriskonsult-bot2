@@ -278,6 +278,17 @@ class PostScheduler:
             except:
                 pass
 
+    async def check_pending_posts_wrapper(self):
+        """Обёртка для вызова асинхронной функции с обработкой ошибок"""
+        try:
+            print(f"🔄 Запуск check_pending_posts_wrapper в {datetime.now().strftime('%H:%M:%S')}")
+            sys.stdout.flush()
+            await self.check_pending_posts()
+        except Exception as e:
+            logger.error(f"❌ Ошибка в планировщике: {e}")
+            print(f"❌ Ошибка в планировщике: {e}")
+            sys.stdout.flush()
+
     async def send_daily_report(self):
         """Отправка ежедневного отчёта администратору"""
         try:
@@ -347,14 +358,15 @@ class PostScheduler:
             
             sys.stdout.flush()
             
+            # ЗАМЕНЕНО: используем wrapper вместо прямого вызова
             self.scheduler.add_job(
-                self.check_pending_posts,
+                self.check_pending_posts_wrapper,  # ← ИЗМЕНЕНО
                 trigger=IntervalTrigger(minutes=1),
                 id='check_posts',
                 replace_existing=True,
                 misfire_grace_time=30
             )
-            print("✅ Задача check_pending_posts добавлена в планировщик")
+            print("✅ Задача check_posts добавлена в планировщик (через wrapper)")
             sys.stdout.flush()
             
             self.scheduler.add_job(
