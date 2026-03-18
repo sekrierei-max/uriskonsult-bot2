@@ -903,6 +903,40 @@ async def cmd_status(message: Message, **kwargs):
     logger.info(f"Admin {message.from_user.id} requested status (test DB)")
 
 # ============================================
+# ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ КАНАЛА
+# ============================================
+
+@dp.message(Command("test_channel"))
+@admin_only
+async def cmd_test_channel(message: Message):
+    """Проверяет, может ли бот писать в канал"""
+    try:
+        channel = config['CHANNEL_ID']
+        
+        # Правильная обработка ID канала
+        if str(channel).startswith('-100'):
+            channel_id = int(channel)
+            channel_type = "числовой ID"
+        else:
+            channel_id = "@" + channel
+            channel_type = "username"
+        
+        test_text = (
+            f"🧪 **Тестовое сообщение**\n\n"
+            f"Канал: {channel}\n"
+            f"Тип: {channel_type}\n"
+            f"Время: {datetime.now().strftime('%H:%M:%S')}"
+        )
+        
+        await bot.send_message(chat_id=channel_id, text=test_text)
+        await message.answer(f"✅ Сообщение отправлено в канал!\nТип: {channel_type}")
+        
+    except Exception as e:
+        error_msg = f"❌ Ошибка: {type(e).__name__}: {e}"
+        logger.error(error_msg)
+        await message.answer(error_msg)
+
+# ============================================
 # КОМАНДА /republish
 # ============================================
 
@@ -1528,10 +1562,9 @@ async def on_shutdown():
 async def run_scheduler():
     """Запускает планировщик в фоне"""
     try:
-        print("🔴🔴🔴 ПЫТАЮСЬ ЗАПУСТИТЬ ПЛАНИРОВЩИК ИЗ bot.py 🔴🔴🔴")
+        print("🔴 ПЫТАЮСЬ ЗАПУСТИТЬ ПЛАНИРОВЩИК ИЗ bot.py")
         import sys
-        sys.stdout.flush()
-        
+        sys.path.append('/app')
         from scheduler import PostScheduler
         scheduler = PostScheduler()
         asyncio.create_task(scheduler.start())
@@ -1540,7 +1573,29 @@ async def run_scheduler():
         logger.error(f"❌ ОШИБКА ЗАПУСКА ПЛАНИРОВЩИКА: {e}")
         import traceback
         traceback.print_exc()
-        sys.stdout.flush()
+
+async def on_shutdown():
+    logger.info("🛑 Bot is shutting down...")
+    if hasattr(db, 'pool') and db.pool:
+        await db.pool.close()
+    await bot.session.close()
+    logger.info("👋 Bot stopped")
+
+# ВРЕМЕННЫЙ ЗАПУСК ПЛАНИРОВЩИКА ВМЕСТЕ С БОТОМ
+async def run_scheduler():
+    """Запускает планировщик в фоне"""
+    try:
+        print("🔴 ПЫТАЮСЬ ЗАПУСТИТЬ ПЛАНИРОВЩИК ИЗ bot.py")
+        import sys
+        sys.path.append('/app')
+        from scheduler import PostScheduler
+        scheduler = PostScheduler()
+        asyncio.create_task(scheduler.start())
+        logger.info("🚀 Планировщик запущен из bot.py")
+    except Exception as e:
+        logger.error(f"❌ ОШИБКА ЗАПУСКА ПЛАНИРОВЩИКА: {e}")
+        import traceback
+        traceback.print_exc()
 
 async def main():
     dp.startup.register(on_startup)
