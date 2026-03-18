@@ -963,7 +963,7 @@ async def cmd_republish(message: Message, **kwargs):  # ← Добавлен **k
 
 @dp.message(Command("republish_deep"))
 @admin_only
-async def cmd_republish_deep(message: Message):
+async def cmd_republish_deep(message: Message, **kwargs):  # ← Добавлен **kwargs
     try:
         parts = message.text.split()
         if len(parts) != 2:
