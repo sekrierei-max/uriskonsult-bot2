@@ -660,27 +660,6 @@ async def cmd_cases(message: Message):
 # КОМАНДА /consult
 # ============================================
 
-@dp.message(Command("free"))
-async def cmd_free(message: Message):
-    text = "📚 **БЕСПЛАТНЫЕ ДОКУМЕНТЫ**\n\nВыберите категорию:"
-    await message.answer(text, reply_markup=get_free_categories_keyboard())
-
-# ============================================
-# КОМАНДА /cases
-# ============================================
-
-@dp.message(Command("cases"))
-async def cmd_cases(message: Message):
-    keyboard = get_cases_keyboard()
-    if keyboard:
-        await message.answer("📋 Выберите интересующий вас кейс:", reply_markup=keyboard)
-    else:
-        await message.answer("📭 Пока нет опубликованных кейсов. Скоро появятся!")
-
-# ============================================
-# КОМАНДА /consult
-# ============================================
-
 @dp.message(Command("consult"))
 async def cmd_consult(message: Message):
     text = "👨‍⚖️ Запись на консультацию\n\nВыберите способ обращения:"
