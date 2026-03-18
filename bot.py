@@ -859,21 +859,19 @@ async def cmd_status(message: Message, **kwargs):
     total_users = len(user_message_counts)
     total_messages = sum(user_message_counts.values())
     
-    # Получаем информацию о посте #6
-    async with db.pool.acquire() as conn:
-        post_6 = await conn.fetchrow("""
-            SELECT * FROM scheduled_posts 
-            WHERE article_id = 6
-            ORDER BY id
-        """)
-        
-        # Также проверим, есть ли посты в принципе
-        all_posts = await conn.fetch("""
-            SELECT id, article_id, post_type, status, scheduled_time, fail_reason 
-            FROM scheduled_posts 
-            ORDER BY scheduled_time DESC
-            LIMIT 5
-        """)
+    # Получаем информацию о посте #6 через существующие методы db
+    # Вместо прямого обращения к db.pool используем методы database.py
+    post_6 = None
+    all_posts = []
+    
+    # Используем существующий метод для получения постов
+    pending_posts = await db.get_pending_posts()
+    for post in pending_posts:
+        if post['article_id'] == 6:
+            post_6 = post
+    
+    # Получаем все статьи для информации
+    articles_list = await db.get_articles_list()
     
     text = (
         f"📊 **Статус системы**\n\n"
@@ -897,19 +895,10 @@ async def cmd_status(message: Message, **kwargs):
             f"• Время: {post_6['scheduled_time']}\n"
             f"• Статус: {post_6['status']}\n"
         )
-        if post_6['fail_reason']:
+        if post_6.get('fail_reason'):
             text += f"• ❌ Ошибка: {post_6['fail_reason']}\n"
     else:
         text += f"❌ Пост для статьи #6 не найден в scheduled_posts\n\n"
-    
-    if all_posts:
-        text += f"📋 **Последние 5 постов в базе:**\n"
-        for p in all_posts:
-            text += f"• ID {p['id']} | Ст.{p['article_id']} | {p['post_type']} | {p['status']}\n"
-            if p['fail_reason']:
-                text += f"  ⚠️ {p['fail_reason'][:50]}\n"
-    else:
-        text += f"📭 В базе нет никаких запланированных постов"
     
     await message.answer(text)
     logger.info(f"Admin {message.from_user.id} requested status with diagnostics")
