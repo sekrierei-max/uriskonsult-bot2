@@ -585,7 +585,7 @@ async def cmd_help(message: Message):
     logger.info(f"User {message.from_user.id} requested help")
 
 # ============================================
-# КОМАНДА /calculator (АКТУАЛЬНАЯ ВЕРСИЯ)
+# КОМАНДА /calculator
 # ============================================
 
 @dp.message(Command("calculator"))
@@ -630,44 +630,11 @@ async def cmd_clear_limits(message: Message, **kwargs):
 # КОМАНДА /shop
 # ============================================
 
-@dp.message(Command("calculator"))
-async def cmd_calculator(message: Message):
-    text = (
-        "🧮 **Калькулятор ЖКХ**\n\n"
-        "✅ **Калькулятор готов к работе!**\n\n"
-        "Теперь вы можете рассчитать плату за ЖКУ по актуальным тарифам:\n\n"
-        "👉 https://jkh-calculator-hrzuucss2p44fwj5bjeappd.streamlit.app\n\n"
-        "**Что доступно:**\n"
-        "• Актуальные тарифы по Геленджику и Пыть-Яху\n"
-        "• Расчёт воды, электричества, отопления и ТКО\n"
-        "• Сравнение с нормативами\n"
-        "• Персональные рекомендации\n\n"
-        "✨ **Переходите по ссылке и пробуйте!**\n\n"
-        "Если у вас возникнут вопросы или предложения — пишите /consult"
-    )
-    await message.answer(text)
-    logger.info(f"User {message.from_user.id} used /calculator (ready)")
-
-# ============================================
-# КОМАНДА /calculate
-# ============================================
-
-@dp.message(Command("calculate"))
-async def cmd_calculate(message: Message):
-    await cmd_calculator(message)
-
-# ============================================
-# КОМАНДА /clear_limits
-# ============================================
-
-@dp.message(Command("clear_limits"))
-@admin_only
-async def cmd_clear_limits(message: Message, **kwargs):
-    user_message_counts.clear()
-    user_last_reset.clear()
-    await message.answer("✅ Все лимиты сообщений сброшены")
-    logger.info(f"Message limits cleared by admin {message.from_user.id}")
-
+@dp.message(Command("shop"))
+async def cmd_shop(message: Message):
+    text = "🛒 **МАГАЗИН ДОГОВОРОВ**\n\nВыберите договор:"
+    await message.answer(text, reply_markup=get_shop_keyboard())
+    
 # ============================================
 # КОМАНДА /shop
 # ============================================
