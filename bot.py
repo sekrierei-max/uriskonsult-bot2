@@ -562,7 +562,10 @@ async def cmd_help(message: Message):
         "/cases - Кейсы\n\n"
     )
     
-    if message.from_user.id == config['ADMIN_ID']:
+    # Проверяем, является ли пользователь администратором
+    is_admin_user = message.from_user.id == config.get('ADMIN_ID', 0)
+    
+    if is_admin_user:
         help_text += (
             "🔰 **Для администратора:**\n"
             "/admin - Войти в панель управления\n"
@@ -578,7 +581,7 @@ async def cmd_help(message: Message):
             "/clear_limits - Сбросить лимиты сообщений\n"
         )
     
-    await message.answer(help_text)
+    await message.answer(help_text, parse_mode="Markdown")
     logger.info(f"User {message.from_user.id} requested help")
 
 # ============================================
