@@ -1614,7 +1614,7 @@ async def run_scheduler():
 
 async def main():
     dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown)  # ← on_shutdown уже определена выше
+    dp.shutdown.register(on_shutdown)  # ← on_shutdown уже определена выше!
     
     # Запускаем простой планировщик в фоне
     asyncio.create_task(run_scheduler())
