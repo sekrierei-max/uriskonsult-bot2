@@ -903,7 +903,7 @@ async def cmd_status(message: Message, **kwargs):
     logger.info(f"Admin {message.from_user.id} requested status (test DB)")
 
 # ============================================
-# ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ КАНАЛА
+# ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ КАНАЛА (С ОТЛАДКОЙ)
 # ============================================
 
 @dp.message(Command("test_channel"))
@@ -911,6 +911,10 @@ async def cmd_status(message: Message, **kwargs):
 async def cmd_test_channel(message: Message):
     """Проверяет, может ли бот писать в канал"""
     try:
+        # Отладка: что лежит в config
+        print(f"🔍 ОТЛАДКА: config['CHANNEL_ID'] = {config['CHANNEL_ID']} (тип: {type(config['CHANNEL_ID']).__name__})")
+        logger.info(f"🔍 ОТЛАДКА: config['CHANNEL_ID'] = {config['CHANNEL_ID']} (тип: {type(config['CHANNEL_ID']).__name__})")
+        
         channel = config['CHANNEL_ID']
         
         # Правильная обработка ID канала
@@ -920,6 +924,10 @@ async def cmd_test_channel(message: Message):
         else:
             channel_id = "@" + channel
             channel_type = "username"
+        
+        # Отладка: что получилось
+        print(f"🔍 ОТЛАДКА: channel_id = {channel_id} (тип: {type(channel_id).__name__})")
+        logger.info(f"🔍 ОТЛАДКА: channel_id = {channel_id} (тип: {type(channel_id).__name__})")
         
         test_text = (
             f"🧪 **Тестовое сообщение**\n\n"
@@ -933,6 +941,7 @@ async def cmd_test_channel(message: Message):
         
     except Exception as e:
         error_msg = f"❌ Ошибка: {type(e).__name__}: {e}"
+        print(f"🔴 ОШИБКА: {error_msg}")
         logger.error(error_msg)
         await message.answer(error_msg)
 
