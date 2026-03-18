@@ -909,7 +909,7 @@ async def cmd_status(message: Message, **kwargs):
 
 @dp.message(Command("test_channel"))
 @admin_only
-async def cmd_test_channel(message: Message):
+async def cmd_test_channel(message: Message, **kwargs):
     """Проверяет, может ли бот писать в канал"""
     try:
         # Отладка: что лежит в config
