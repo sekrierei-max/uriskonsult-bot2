@@ -923,7 +923,7 @@ async def cmd_test_channel(message: Message):
 
 @dp.message(Command("republish"))
 @admin_only
-async def cmd_republish(message: Message):
+async def cmd_republish(message: Message, **kwargs):  # ← Добавлен **kwargs
     try:
         parts = message.text.split()
         if len(parts) != 2:
