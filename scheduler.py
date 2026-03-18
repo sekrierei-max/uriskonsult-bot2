@@ -278,32 +278,34 @@ class PostScheduler:
             except:
                 pass
 
-       # ========== ИСПРАВЛЕННЫЙ WRAPPER С ДИАГНОСТИКОЙ ==========
+    # ========== ИСПРАВЛЕННЫЙ WRAPPER ==========
     def check_pending_posts_wrapper(self):
         """Обёртка для вызова асинхронной функции - синхронная (для APScheduler)"""
         try:
             print(f"🔄 Wrapper вызван в {datetime.now().strftime('%H:%M:%S')}")
-            print(f"🔄 Создаю асинхронную задачу...")
+            print(f"🔄 Получаю текущий event loop...")
             sys.stdout.flush()
-            # Создаём задачу для асинхронного выполнения
-            task = asyncio.create_task(self._check_pending_posts_async())
-            print(f"🔄 Задача создана: {task}")
+            
+            # Получаем текущий event loop
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # Если нет running loop, берём главный
+                loop = asyncio.get_event_loop()
+            
+            print(f"🔄 Event loop получен: {loop}")
             sys.stdout.flush()
+            
+            # Запускаем корутину в этом loop
+            future = asyncio.run_coroutine_threadsafe(
+                self._check_pending_posts_async(), 
+                loop
+            )
+            print(f"🔄 Задача запущена, future: {future}")
+            sys.stdout.flush()
+            
         except Exception as e:
             print(f"❌ ОШИБКА В WRAPPER: {e}")
-            sys.stdout.flush()
-
-    async def _check_pending_posts_async(self):
-        """Асинхронная часть проверки постов"""
-        try:
-            print(f"✅ _check_pending_posts_async запущена")
-            sys.stdout.flush()
-            await self.check_pending_posts()
-            print(f"✅ _check_pending_posts_async завершена")
-            sys.stdout.flush()
-        except Exception as e:
-            logger.error(f"❌ Ошибка в _check_pending_posts_async: {e}")
-            print(f"❌ Ошибка в _check_pending_posts_async: {e}")
             import traceback
             traceback.print_exc()
             sys.stdout.flush()
