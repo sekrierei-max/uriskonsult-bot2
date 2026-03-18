@@ -1532,13 +1532,6 @@ async def on_startup():
     
     logger.info("✅ Bot started successfully")
 
-async def on_shutdown():
-    logger.info("🛑 Bot is shutting down...")
-    if hasattr(db, 'pool') and db.pool:
-        await db.pool.close()
-    await bot.session.close()
-    logger.info("👋 Bot stopped")
-
 # ВРЕМЕННЫЙ ЗАПУСК ПЛАНИРОВЩИКА ВМЕСТЕ С БОТОМ
 async def run_scheduler():
     """Запускает планировщик в фоне"""
