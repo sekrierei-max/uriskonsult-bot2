@@ -1524,9 +1524,31 @@ async def on_shutdown():
     await bot.session.close()
     logger.info("👋 Bot stopped")
 
+# ВРЕМЕННЫЙ ЗАПУСК ПЛАНИРОВЩИКА ВМЕСТЕ С БОТОМ
+async def run_scheduler():
+    """Запускает планировщик в фоне"""
+    try:
+        print("🔴🔴🔴 ПЫТАЮСЬ ЗАПУСТИТЬ ПЛАНИРОВЩИК ИЗ bot.py 🔴🔴🔴")
+        import sys
+        sys.stdout.flush()
+        
+        from scheduler import PostScheduler
+        scheduler = PostScheduler()
+        asyncio.create_task(scheduler.start())
+        logger.info("🚀 Планировщик запущен из bot.py")
+    except Exception as e:
+        logger.error(f"❌ ОШИБКА ЗАПУСКА ПЛАНИРОВЩИКА: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.stdout.flush()
+
 async def main():
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
+    
+    # Запускаем планировщик в фоне
+    asyncio.create_task(run_scheduler())
+    
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
