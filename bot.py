@@ -569,6 +569,7 @@ async def cmd_help(message: Message):
         help_text += (
             "🔰 Для администратора:\n"
             "/admin - Войти в панель управления\n"
+            "/test_channel - Проверить доступ к каналу\n"
             "/add_article - Добавить статью\n"
             "/list_articles - Список статей\n"
             "/del_article [ID] - Удалить статью\n"
