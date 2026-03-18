@@ -1606,6 +1606,61 @@ async def main():
     
     await dp.start_polling(bot)
 
+async def on_shutdown():
+    logger.info("🛑 Bot is shutting down...")
+    if hasattr(db, 'pool') and db.pool:
+        await db.pool.close()
+    await bot.session.close()
+    logger.info("👋 Bot stopped")
+
+# ВРЕМЕННЫЙ ЗАПУСК ПЛАНИРОВЩИКА ВМЕСТЕ С БОТОМ (ВРЕМЕННО ОТКЛЮЧЕНО)
+async def run_scheduler():
+    """Запускает планировщик в фоне"""
+    try:
+        print("🔴 ПЫТАЮСЬ ЗАПУСТИТЬ ПЛАНИРОВЩИК ИЗ bot.py")
+        import sys
+        sys.path.append('/app')
+        from scheduler import PostScheduler
+        scheduler = PostScheduler()
+        asyncio.create_task(scheduler.start())
+        logger.info("🚀 Планировщик запущен из bot.py")
+    except Exception as e:
+        logger.error(f"❌ ОШИБКА ЗАПУСКА ПЛАНИРОВЩИКА: {e}")
+        import traceback
+        traceback.print_exc()
+
+async def on_shutdown():
+    logger.info("🛑 Bot is shutting down...")
+    if hasattr(db, 'pool') and db.pool:
+        await db.pool.close()
+    await bot.session.close()
+    logger.info("👋 Bot stopped")
+
+# ВРЕМЕННЫЙ ЗАПУСК ПЛАНИРОВЩИКА ВМЕСТЕ С БОТОМ (ВРЕМЕННО ОТКЛЮЧЕНО)
+async def run_scheduler():
+    """Запускает планировщик в фоне"""
+    try:
+        print("🔴 ПЫТАЮСЬ ЗАПУСТИТЬ ПЛАНИРОВЩИК ИЗ bot.py")
+        import sys
+        sys.path.append('/app')
+        from scheduler import PostScheduler
+        scheduler = PostScheduler()
+        asyncio.create_task(scheduler.start())
+        logger.info("🚀 Планировщик запущен из bot.py")
+    except Exception as e:
+        logger.error(f"❌ ОШИБКА ЗАПУСКА ПЛАНИРОВЩИКА: {e}")
+        import traceback
+        traceback.print_exc()
+
+async def main():
+    dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
+    
+    # Запускаем планировщик в фоне (ВРЕМЕННО ОТКЛЮЧЕНО)
+    # asyncio.create_task(run_scheduler())
+    
+    await dp.start_polling(bot)
+
 if __name__ == "__main__":
     try:
         asyncio.run(main())
