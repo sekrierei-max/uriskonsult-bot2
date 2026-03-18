@@ -1601,3 +1601,74 @@ async def run_scheduler():
         except Exception as e:
             logger.error(f"❌ Ошибка в планировщике: {e}")
             await asyncio.sleep(10)
+
+# ПРОСТОЙ ПЛАНИРОВЩИК БЕЗ APSCHEDULER
+async def run_scheduler():
+    """Простой фоновый планировщик"""
+    logger.info("🚀 Простой планировщик запущен")
+    
+    while True:
+        try:
+            # Проверяем посты каждые 30 секунд
+            await asyncio.sleep(30)
+            
+            print(f"⏰ Проверка постов в {datetime.now().strftime('%H:%M:%S')}")
+            
+            # Проверяем, есть ли метод get_pending_posts
+            if hasattr(db, 'get_pending_posts'):
+                posts = await db.get_pending_posts()
+                
+                if posts:
+                    logger.info(f"📋 Найдено {len(posts)} постов для публикации")
+                    
+                    for post in posts:
+                        # Публикуем пост
+                        try:
+                            channel = config['CHANNEL_ID']
+                            if str(channel).startswith('-100'):
+                                channel_id = int(channel)
+                            else:
+                                channel_id = "@" + channel
+                            
+                            await bot.send_message(
+                                chat_id=channel_id,
+                                text=post['content'],
+                                parse_mode='HTML'
+                            )
+                            logger.info(f"✅ Пост {post['id']} опубликован")
+                            
+                            # Обновляем статус
+                            if hasattr(db, 'update_post_status'):
+                                await db.update_post_status(post['id'], 'published')
+                                
+                        except Exception as e:
+                            logger.error(f"❌ Ошибка публикации поста {post['id']}: {e}")
+                else:
+                    print("📭 Нет постов для публикации")
+            else:
+                print("❌ Нет метода get_pending_posts")
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка в планировщике: {e}")
+            await asyncio.sleep(10)
+
+# ============================================
+# ГЛАВНАЯ ФУНКЦИЯ ЗАПУСКА (ДОБАВЛЯЕМ ЭТО)
+# ============================================
+
+async def main():
+    dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
+    
+    # Запускаем простой планировщик в фоне
+    asyncio.create_task(run_scheduler())
+    
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.exception(f"Fatal error: {e}")
