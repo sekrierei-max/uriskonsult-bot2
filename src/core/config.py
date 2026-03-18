@@ -23,12 +23,27 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # ⚠️ ВАЖНО: ID канала должен быть ЧИСЛОМ для Telegram API
-# Если в переменных окружения канал указан как строка, преобразуем в int
+# Обрабатываем возможные проблемы с тире и пробелами
 CHANNEL_ID_RAW = os.getenv("CHANNEL_ID")
-if CHANNEL_ID_RAW and str(CHANNEL_ID_RAW).startswith('-100'):
-    CHANNEL_ID = int(CHANNEL_ID_RAW)  # Преобразуем строку в число
+
+if CHANNEL_ID_RAW:
+    # Приводим к строке и удаляем пробелы
+    cleaned = str(CHANNEL_ID_RAW).strip()
+    # Заменяем все возможные виды тире на обычный дефис
+    # (длинное тире, короткое тире, минус и т.д.)
+    for dash in ['–', '—', '−', '‐']:
+        cleaned = cleaned.replace(dash, '-')
+    
+    # Проверяем, начинается ли с -100 (теперь точно с обычным дефисом)
+    if cleaned.startswith('-100') and cleaned[1:].replace('-', '').isdigit():
+        CHANNEL_ID = int(cleaned)
+        print(f"✅ CHANNEL_ID преобразован в число: {CHANNEL_ID}")
+    else:
+        CHANNEL_ID = cleaned
+        print(f"⚠️ CHANNEL_ID оставлен как строка: {CHANNEL_ID}")
 else:
-    CHANNEL_ID = CHANNEL_ID_RAW  # Оставляем как есть (может быть @username)
+    CHANNEL_ID = None
+    print("⚠️ CHANNEL_ID не задан")
 
 # Настройки планировщика
 SCHEDULER_TIMEZONE = os.getenv("SCHEDULER_TIMEZONE", "Europe/Moscow")
@@ -52,7 +67,7 @@ config = {
     "BOT_TOKEN": BOT_TOKEN,
     "ADMIN_ID": ADMIN_ID,
     "DATABASE_URL": DATABASE_URL,
-    "CHANNEL_ID": CHANNEL_ID,  # Теперь это ЧИСЛО, а не строка!
+    "CHANNEL_ID": CHANNEL_ID,  # Теперь это ЧИСЛО (если начинается с -100)
     "SCHEDULER_TIMEZONE": SCHEDULER_TIMEZONE,
     "SCHEDULER_HOUR": SCHEDULER_HOUR,
     "SCHEDULER_MINUTE": SCHEDULER_MINUTE,
