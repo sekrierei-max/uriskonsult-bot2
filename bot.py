@@ -547,28 +547,6 @@ async def cmd_admin(message: Message):
 # КОМАНДА /help
 # ============================================
 
-@dp.message(Command("calculator"))
-async def cmd_calculator(message: Message):
-    text = (
-        "🧮 **Калькулятор ЖКХ**\n\n"
-        "✅ **Калькулятор готов к работе!**\n\n"
-        "Теперь вы можете рассчитать плату за ЖКУ по актуальным тарифам:\n\n"
-        "👉 https://jkh-calculator-hrzuucss2p44fwj5bjeappd.streamlit.app\n\n"
-        "**Что доступно:**\n"
-        "• Актуальные тарифы по Геленджику и Пыть-Яху\n"
-        "• Расчёт воды, электричества, отопления и ТКО\n"
-        "• Сравнение с нормативами\n"
-        "• Персональные рекомендации\n\n"
-        "✨ **Переходите по ссылке и пробуйте!**\n\n"
-        "Если у вас возникнут вопросы или предложения — пишите /consult"
-    )
-    await message.answer(text)
-    logger.info(f"User {message.from_user.id} used /calculator (ready)")
-
-# ============================================
-# КОМАНДА /help
-# ============================================
-
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     help_text = (
