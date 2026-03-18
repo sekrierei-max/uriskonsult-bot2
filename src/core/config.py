@@ -1,3 +1,4 @@
+print("🔥🔥🔥 config.py загружается, config создан:", "config" in locals())
 import os
 from pathlib import Path
 
