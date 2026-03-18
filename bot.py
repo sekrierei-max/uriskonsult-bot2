@@ -547,42 +547,23 @@ async def cmd_admin(message: Message):
 # КОМАНДА /help
 # ============================================
 
-@dp.message(Command("help"))
-async def cmd_help(message: Message):
-    help_text = (
-        "📋 Доступные команды:\n\n"
-        "👤 Для всех:\n"
-        "/start - Начать работу\n"
-        "/help - Это меню\n"
-        "/calculator - Калькулятор ЖКХ\n"
-        "/calculate - То же самое\n"
-        "/shop - Магазин договоров\n"
-        "/consult - Консультация\n"
-        "/free - Бесплатные документы\n"
-        "/cases - Кейсы\n\n"
+@dp.message(Command("calculator"))
+async def cmd_calculator(message: Message):
+    text = (
+        "🧮 **Калькулятор ЖКХ**\n\n"
+        "✅ **Калькулятор готов к работе!**\n\n"
+        "Теперь вы можете рассчитать плату за ЖКУ по актуальным тарифам:\n\n"
+        "👉 https://jkh-calculator-hrzuucss2p44fwj5bjeappd.streamlit.app\n\n"
+        "**Что доступно:**\n"
+        "• Актуальные тарифы по Геленджику и Пыть-Яху\n"
+        "• Расчёт воды, электричества, отопления и ТКО\n"
+        "• Сравнение с нормативами\n"
+        "• Персональные рекомендации\n\n"
+        "✨ **Переходите по ссылке и пробуйте!**\n\n"
+        "Если у вас возникнут вопросы или предложения — пишите /consult"
     )
-    
-    # Проверяем, является ли пользователь администратором
-    is_admin_user = message.from_user.id == config.get('ADMIN_ID', 0)
-    
-    if is_admin_user:
-        help_text += (
-            "🔰 Для администратора:\n"
-            "/admin - Войти в панель управления\n"
-            "/add_article - Добавить статью\n"
-            "/list_articles - Список статей\n"
-            "/del_article [ID] - Удалить статью\n"
-            "/edit_article [ID] - Редактировать\n"
-            "/status - Статус планировщика\n"
-            "/stats - То же, что /status\n"
-            "/republish [ID] - Перепубликовать старый пост\n"
-            "/republish_deep [ключ] - Опубликовать deep link статью\n"
-            "/old_posts - Список старых постов\n"
-            "/clear_limits - Сбросить лимиты сообщений\n"
-        )
-    
-    await message.answer(help_text)  # Убрал parse_mode
-    logger.info(f"User {message.from_user.id} requested help")
+    await message.answer(text)
+    logger.info(f"User {message.from_user.id} used /calculator (ready)")
 
 # ============================================
 # КОМАНДА /calculator
