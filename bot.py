@@ -2,7 +2,7 @@
 """
 Основной бот для управления статьями и публикациями
 ПОЛНОСТЬЮ РАБОЧАЯ ВЕРСИЯ — С УЛУЧШЕННОЙ КОНСУЛЬТАЦИЕЙ
-ИСПРАВЛЕНЫ СИНТАКСИЧЕСКИЕ ОШИБКИ
+ИСПРАВЛЕНЫ ВСЕ ОШИБКИ
 """
 
 import asyncio
@@ -31,9 +31,9 @@ from database import db
 from models import Article, ScheduledPost
 
 # Настройка логирования
-logger = setup_logger('bot', config.BOT_LOG)
-print(f"🤖 Инициализация бота с токеном: {config.BOT_TOKEN[:10]}...")
-bot = Bot(token=config.BOT_TOKEN)
+logger = setup_logger('bot')
+print(f"🤖 Инициализация бота с токеном: {config['BOT_TOKEN'][:10]}...")
+bot = Bot(token=config['BOT_TOKEN'])
 dp = Dispatcher(storage=MemoryStorage())
 
 # ============================================
@@ -327,11 +327,11 @@ DEEP_ARTICLES = {
 # ============================================
 
 def is_admin(user_id: int) -> bool:
-    return user_id == config.ADMIN_ID
+    return user_id == config['ADMIN_ID']
 
 def admin_only(func):
     async def wrapper(message: Message, *args, **kwargs):
-        if message.from_user.id != config.ADMIN_ID:
+        if message.from_user.id != config['ADMIN_ID']:
             await message.answer("⛔ У вас нет прав для выполнения этой команды.")
             logger.warning(f"Unauthorized access attempt by user {message.from_user.id}")
             return
@@ -521,7 +521,7 @@ async def cmd_start(message: Message, state: FSMContext = None):
     
     await send_welcome_post(message, source=f"cmd_start_{call_id}")
     
-    if message.from_user.id == config.ADMIN_ID:
+    if message.from_user.id == config['ADMIN_ID']:
         admin_text = "🔐 Вы администратор. Используйте /admin для входа в панель управления."
         await message.answer(admin_text)
         logger.info(f"👑 Админ-сообщение отправлено. ID: {call_id}")
@@ -534,7 +534,7 @@ async def cmd_start(message: Message, state: FSMContext = None):
 
 @dp.message(Command("admin"))
 async def cmd_admin(message: Message):
-    if message.from_user.id != config.ADMIN_ID:
+    if message.from_user.id != config['ADMIN_ID']:
         await message.answer("⛔ У вас нет прав для входа в админ-панель.")
         return
     
@@ -562,7 +562,7 @@ async def cmd_help(message: Message):
         "/cases - Кейсы\n\n"
     )
     
-    if message.from_user.id == config.ADMIN_ID:
+    if message.from_user.id == config['ADMIN_ID']:
         help_text += (
             "🔰 **Для администратора:**\n"
             "/admin - Войти в панель управления\n"
@@ -676,7 +676,7 @@ class ArticleStates(StatesGroup):
 
 @dp.callback_query(lambda c: c.data == "admin_add_article")
 async def admin_add_article(callback: CallbackQuery, state: FSMContext):
-    if callback.from_user.id != config.ADMIN_ID:
+    if callback.from_user.id != config['ADMIN_ID']:
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
     await callback.answer()
@@ -684,7 +684,7 @@ async def admin_add_article(callback: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(lambda c: c.data == "admin_list_articles")
 async def admin_list_articles(callback: CallbackQuery, state: FSMContext = None):
-    if callback.from_user.id != config.ADMIN_ID:
+    if callback.from_user.id != config['ADMIN_ID']:
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
     await callback.answer()
@@ -692,7 +692,7 @@ async def admin_list_articles(callback: CallbackQuery, state: FSMContext = None)
 
 @dp.callback_query(lambda c: c.data == "admin_del_article")
 async def admin_del_article(callback: CallbackQuery, state: FSMContext = None):
-    if callback.from_user.id != config.ADMIN_ID:
+    if callback.from_user.id != config['ADMIN_ID']:
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
     await callback.answer()
@@ -705,7 +705,7 @@ async def admin_del_article(callback: CallbackQuery, state: FSMContext = None):
 
 @dp.callback_query(lambda c: c.data == "admin_edit_article")
 async def admin_edit_article(callback: CallbackQuery, state: FSMContext = None):
-    if callback.from_user.id != config.ADMIN_ID:
+    if callback.from_user.id != config['ADMIN_ID']:
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
     await callback.answer()
@@ -718,7 +718,7 @@ async def admin_edit_article(callback: CallbackQuery, state: FSMContext = None):
 
 @dp.callback_query(lambda c: c.data == "admin_status")
 async def admin_status(callback: CallbackQuery, state: FSMContext = None):
-    if callback.from_user.id != config.ADMIN_ID:
+    if callback.from_user.id != config['ADMIN_ID']:
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
     await callback.answer()
@@ -726,7 +726,7 @@ async def admin_status(callback: CallbackQuery, state: FSMContext = None):
 
 @dp.callback_query(lambda c: c.data == "admin_republish")
 async def admin_republish(callback: CallbackQuery, state: FSMContext = None):
-    if callback.from_user.id != config.ADMIN_ID:
+    if callback.from_user.id != config['ADMIN_ID']:
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
     await callback.answer()
@@ -739,7 +739,7 @@ async def admin_republish(callback: CallbackQuery, state: FSMContext = None):
 
 @dp.callback_query(lambda c: c.data == "admin_old_posts")
 async def admin_old_posts(callback: CallbackQuery, state: FSMContext = None):
-    if callback.from_user.id != config.ADMIN_ID:
+    if callback.from_user.id != config['ADMIN_ID']:
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
     await callback.answer()
@@ -747,7 +747,7 @@ async def admin_old_posts(callback: CallbackQuery, state: FSMContext = None):
 
 @dp.callback_query(lambda c: c.data == "admin_exit")
 async def admin_exit(callback: CallbackQuery, state: FSMContext = None):
-    if callback.from_user.id != config.ADMIN_ID:
+    if callback.from_user.id != config['ADMIN_ID']:
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
     await callback.answer()
@@ -933,17 +933,17 @@ async def cmd_republish(message: Message):
             await message.answer(f"❌ Статья с ID {article_id} не найдена.")
             return
         teaser_text = (
-            f"{article['full_text'][:config.TEASER_LENGTH]}...\n\n"
+            f"{article['full_text'][:config['TEASER_LENGTH']]}...\n\n"
             f"<b>🔗 ПОЛНЫЙ РАЗБОР НОВЫХ ПРАВИЛ</b>\n"
             f"➡️ @uriskonsult_bot?start=article_{article_id}\n\n"
             f"👨‍⚖️ <b>Нужна консультация?</b>\n"
             f"➡️ /consult"
         )
         # ПРАВИЛЬНАЯ обработка ID канала
-        if str(config.CHANNEL_ID).startswith('-100'):
-            channel = int(config.CHANNEL_ID)
+        if str(config['CHANNEL_ID']).startswith('-100'):
+            channel = int(config['CHANNEL_ID'])
         else:
-            channel = "@" + config.CHANNEL_ID
+            channel = "@" + config['CHANNEL_ID']
             
         await bot.send_message(chat_id=channel, text=teaser_text)
         await message.answer(f"✅ Пост для статьи #{article_id} успешно перепубликован!")
@@ -980,7 +980,7 @@ async def cmd_republish_deep(message: Message):
             return
         
         full_text = DEEP_ARTICLES[key]
-        teaser_length = min(config.TEASER_LENGTH, 300)
+        teaser_length = min(config['TEASER_LENGTH'], 300)
         teaser_text = full_text[:teaser_length] + "...\n\n"
         teaser_text += (
             f"🔗 ЧИТАТЬ ПОЛНОСТЬЮ\n"
@@ -990,10 +990,10 @@ async def cmd_republish_deep(message: Message):
         )
         
         # ПРАВИЛЬНАЯ обработка ID канала
-        if str(config.CHANNEL_ID).startswith('-100'):
-            channel = int(config.CHANNEL_ID)
+        if str(config['CHANNEL_ID']).startswith('-100'):
+            channel = int(config['CHANNEL_ID'])
         else:
-            channel = "@" + config.CHANNEL_ID
+            channel = "@" + config['CHANNEL_ID']
             
         await bot.send_message(chat_id=channel, text=teaser_text)
         await message.answer(f"✅ Пост для статьи '{key}' успешно опубликован в канале!")
@@ -1197,7 +1197,7 @@ async def process_text_consult(message: Message, state: FSMContext):
     )
     
     try:
-        await bot.send_message(config.ADMIN_ID, admin_text)
+        await bot.send_message(config['ADMIN_ID'], admin_text)
         await message.answer(
             f"✅ Ваш вопрос передан Эдуарду Ивановичу.\n"
             f"Он свяжется с вами в ближайшее время.\n\n"
@@ -1242,8 +1242,8 @@ async def process_voice_consult(message: Message, state: FSMContext):
     )
     
     try:
-        await bot.send_message(config.ADMIN_ID, admin_text)
-        await bot.send_voice(config.ADMIN_ID, message.voice.file_id)
+        await bot.send_message(config['ADMIN_ID'], admin_text)
+        await bot.send_voice(config['ADMIN_ID'], message.voice.file_id)
         await message.answer(
             f"✅ Ваш голосовой вопрос передан Эдуарду Ивановичу.\n"
             f"Он свяжется с вами в ближайшее время.\n\n"
