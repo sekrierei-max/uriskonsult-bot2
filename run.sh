@@ -6,6 +6,7 @@ echo "================================"
 # Создаем папку для логов
 mkdir -p logs
 echo "📁 Папка logs создана" | tee -a logs/startup.log
+
 # Проверяем переменные окружения
 echo "🔍 Проверка переменных:" | tee -a logs/startup.log
 echo "BOT_TOKEN: ${BOT_TOKEN:0:10}... (первые 10 символов)" | tee -a logs/startup.log
