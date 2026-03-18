@@ -278,20 +278,34 @@ class PostScheduler:
             except:
                 pass
 
-    # ========== ИСПРАВЛЕННЫЙ WRAPPER ==========
+       # ========== ИСПРАВЛЕННЫЙ WRAPPER С ДИАГНОСТИКОЙ ==========
     def check_pending_posts_wrapper(self):
         """Обёртка для вызова асинхронной функции - синхронная (для APScheduler)"""
-        print(f"🔄 Wrapper вызван в {datetime.now().strftime('%H:%M:%S')}")
-        # Создаём задачу для асинхронного выполнения
-        asyncio.create_task(self._check_pending_posts_async())
+        try:
+            print(f"🔄 Wrapper вызван в {datetime.now().strftime('%H:%M:%S')}")
+            print(f"🔄 Создаю асинхронную задачу...")
+            sys.stdout.flush()
+            # Создаём задачу для асинхронного выполнения
+            task = asyncio.create_task(self._check_pending_posts_async())
+            print(f"🔄 Задача создана: {task}")
+            sys.stdout.flush()
+        except Exception as e:
+            print(f"❌ ОШИБКА В WRAPPER: {e}")
+            sys.stdout.flush()
 
     async def _check_pending_posts_async(self):
         """Асинхронная часть проверки постов"""
         try:
+            print(f"✅ _check_pending_posts_async запущена")
+            sys.stdout.flush()
             await self.check_pending_posts()
+            print(f"✅ _check_pending_posts_async завершена")
+            sys.stdout.flush()
         except Exception as e:
-            logger.error(f"❌ Ошибка в планировщике: {e}")
-            print(f"❌ Ошибка: {e}")
+            logger.error(f"❌ Ошибка в _check_pending_posts_async: {e}")
+            print(f"❌ Ошибка в _check_pending_posts_async: {e}")
+            import traceback
+            traceback.print_exc()
             sys.stdout.flush()
     # ==========================================
 
