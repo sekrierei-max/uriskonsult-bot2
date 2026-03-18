@@ -225,6 +225,9 @@ class PostScheduler:
 
     async def check_pending_posts(self):
         """Проверка и публикация ожидающих постов"""
+        print("🔍🔍🔍 check_pending_posts ВЫЗВАНА! 🔍🔍🔍")
+        sys.stdout.flush()
+        
         try:
             logger.debug("🔍 Checking for pending posts...")
             self.stats['last_check'] = datetime.now(self.moscow_tz)
@@ -233,6 +236,8 @@ class PostScheduler:
             
             if posts:
                 logger.info(f"📋 Found {len(posts)} pending posts")
+                print(f"📋 Найдено {len(posts)} ожидающих постов")
+                sys.stdout.flush()
                 
                 for post in posts:
                     job_id = f"post_{post['id']}"
@@ -245,11 +250,17 @@ class PostScheduler:
                             id=job_id
                         )
                         logger.debug(f"⏰ Scheduled post {post['id']} for immediate publishing")
+                        print(f"⏰ Запланирован пост {post['id']}")
+                        sys.stdout.flush()
             else:
                 logger.debug("No pending posts found")
+                print("📭 Нет ожидающих постов")
+                sys.stdout.flush()
                 
         except Exception as e:
             logger.error(f"❌ Error checking pending posts: {e}")
+            print(f"❌ Ошибка в check_pending_posts: {e}")
+            sys.stdout.flush()
             logger.exception(e)
             
             try:
@@ -336,6 +347,8 @@ class PostScheduler:
                 replace_existing=True,
                 misfire_grace_time=30
             )
+            print("✅ Задача check_pending_posts добавлена в планировщик")
+            sys.stdout.flush()
             
             self.scheduler.add_job(
                 self.send_daily_report,
