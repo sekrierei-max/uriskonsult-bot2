@@ -1031,10 +1031,6 @@ async def cmd_republish_deep(message: Message, **kwargs):  # ← Добавле�
 # КОМАНДА /old_posts
 # ============================================
 
-# ============================================
-# КОМАНДА /old_posts
-# ============================================
-
 @dp.message(Command("old_posts"))
 @admin_only
 async def cmd_old_posts(message: Message, **kwargs):  # ← Добавлен **kwargs
