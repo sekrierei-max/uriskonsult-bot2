@@ -550,8 +550,8 @@ async def cmd_admin(message: Message):
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     help_text = (
-        "📋 **Доступные команды:**\n\n"
-        "👤 **Для всех:**\n"
+        "📋 Доступные команды:\n\n"
+        "👤 Для всех:\n"
         "/start - Начать работу\n"
         "/help - Это меню\n"
         "/calculator - Калькулятор ЖКХ\n"
@@ -567,7 +567,7 @@ async def cmd_help(message: Message):
     
     if is_admin_user:
         help_text += (
-            "🔰 **Для администратора:**\n"
+            "🔰 Для администратора:\n"
             "/admin - Войти в панель управления\n"
             "/add_article - Добавить статью\n"
             "/list_articles - Список статей\n"
@@ -581,7 +581,7 @@ async def cmd_help(message: Message):
             "/clear_limits - Сбросить лимиты сообщений\n"
         )
     
-    await message.answer(help_text, parse_mode="Markdown")
+    await message.answer(help_text)  # Убрал parse_mode
     logger.info(f"User {message.from_user.id} requested help")
 
 # ============================================
