@@ -400,7 +400,8 @@ class PostScheduler:
         """Graceful shutdown"""
         logger.info("🛑 Shutting down scheduler...")
         self.scheduler.shutdown(wait=True)
-        await db.pool.close()
+        # Убираем попытку закрыть db.pool, так как в тестовой БД его нет
+        # await db.pool.close()
         await self.bot.session.close()
         logger.info("👋 Scheduler stopped")
 
