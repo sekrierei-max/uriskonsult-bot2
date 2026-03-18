@@ -283,24 +283,33 @@ class PostScheduler:
         """Обёртка для вызова асинхронной функции - синхронная (для APScheduler)"""
         try:
             print(f"🔄 Wrapper вызван в {datetime.now().strftime('%H:%M:%S')}")
-            print(f"🔄 Получаю текущий event loop...")
             sys.stdout.flush()
             
             # Получаем текущий event loop
             try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                # Если нет running loop, берём главный
                 loop = asyncio.get_event_loop()
+            except:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
             
-            print(f"🔄 Event loop получен: {loop}")
+            print(f"🔄 Event loop: {loop}")
             sys.stdout.flush()
             
-            # Запускаем корутину в этом loop
+            # Запускаем корутину и ждём результат (но не блокируем APScheduler)
             future = asyncio.run_coroutine_threadsafe(
                 self._check_pending_posts_async(), 
                 loop
             )
+            
+            # Добавляем callback для обработки результата
+            def done_callback(fut):
+                try:
+                    fut.result()
+                except Exception as e:
+                    print(f"❌ Ошибка в задаче: {e}")
+                    sys.stdout.flush()
+            
+            future.add_done_callback(done_callback)
             print(f"🔄 Задача запущена, future: {future}")
             sys.stdout.flush()
             
@@ -310,7 +319,6 @@ class PostScheduler:
             traceback.print_exc()
             sys.stdout.flush()
     # ==========================================
-
     async def send_daily_report(self):
         """Отправка ежедневного отчёта администратору"""
         try:
