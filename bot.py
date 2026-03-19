@@ -663,8 +663,8 @@ async def cmd_consult(message: Message):
 # ============================================
 class ArticleStates(StatesGroup):
     waiting_for_text = State()
+    waiting_for_photo = State()
     waiting_for_time = State()
-
 # ============================================
 # АДМИН-КОМАНДЫ (через кнопки)
 # ============================================
