@@ -1129,17 +1129,55 @@ def get_channel_post_keyboard(article_id: int):
     return builder.as_markup()
 
 # ============================================
-# ПЛАНИРОВЩИК (ТОЛЬКО ДЛЯ ЛОГОВ)
+# ПЛАНИРОВЩИК С ПУБЛИКАЦИЕЙ ПОСТОВ
 # ============================================
 async def run_scheduler():
-    """Простой планировщик для логов (без публикаций)"""
-    logger.info("🚀 Планировщик логов запущен")
+    """Планировщик с проверкой и публикацией постов"""
+    logger.info("🚀 Планировщик запущен")
     
     while True:
         try:
             await asyncio.sleep(30)
-            logger.info(f"⏰ Пинг планировщика в {datetime.now().strftime('%H:%M:%S')}")
-            logger.debug("Планировщик работает")
+            
+            current_time = datetime.now()
+            logger.info(f"⏰ Проверка постов в {current_time.strftime('%H:%M:%S')}")
+            
+            # Получаем посты для публикации
+            posts = await db.get_pending_posts()
+            
+            if posts:
+                logger.info(f"📋 Найдено {len(posts)} постов для публикации")
+                
+                for post in posts:
+                    try:
+                        channel = config['CHANNEL_ID']
+                        
+                        # Форматируем пост
+                        title = post['content'].split('\n')[0][:50]
+                        body = post['content'][50:300] + "..."
+                        post_text = (
+                            f"🔥 **{title}**\n\n"
+                            f"{body}\n\n"
+                            f"⚠️ Читайте полностью в боте 👇"
+                        )
+                        
+                        # Отправляем в канал с кнопкой
+                        await bot.send_message(
+                            chat_id=channel,
+                            text=post_text,
+                            parse_mode='HTML',
+                            reply_markup=get_channel_post_keyboard(post['id'])
+                        )
+                        logger.info(f"✅ Пост {post['id']} опубликован")
+                        
+                        # Обновляем статус
+                        await db.update_post_status(post['id'], 'published')
+                            
+                    except Exception as e:
+                        logger.error(f"❌ Ошибка публикации поста {post['id']}: {e}")
+            else:
+                logger.info("📭 Нет постов для публикации")
+                
         except Exception as e:
             logger.error(f"❌ Ошибка в планировщике: {e}")
             await asyncio.sleep(10)
