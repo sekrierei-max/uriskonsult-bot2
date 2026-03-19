@@ -12,6 +12,7 @@ import time
 import uuid
 import inspect
 import os
+import signal
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from collections import defaultdict
@@ -29,6 +30,32 @@ from src.core.config import config
 from src.core.logger import setup_logger
 from database import db
 from models import Article, ScheduledPost
+
+# ============================================
+# ПРИНУДИТЕЛЬНОЕ ЛОГИРОВАНИЕ В STDOUT
+# ============================================
+sys.stdout = open(1, 'w', encoding='utf-8', closefd=False)
+sys.stderr = open(2, 'w', encoding='utf-8', closefd=False)
+
+def signal_handler(sig, frame):
+    print(f"🔴 Получен сигнал {sig}, бот завершается")
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
+
+print("🚀 Бот ЗАПУЩЕН, принудительное логирование включено")
+print(f"📊 Python версия: {sys.version}")
+print(f"📁 Текущая директория: {os.getcwd()}")
+print(f"📂 Файлы в директории: {os.listdir('.')}")
+
+# ============================================
+# Настройка логирования
+# ============================================
+logger = setup_logger('bot')
+print(f"🤖 Инициализация бота с токеном: {config['BOT_TOKEN'][:10]}...")
+bot = Bot(token=config['BOT_TOKEN'])
+dp = Dispatcher(storage=MemoryStorage())
 
 # Настройка логирования
 logger = setup_logger('bot')
