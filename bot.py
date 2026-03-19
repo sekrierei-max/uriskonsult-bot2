@@ -1200,7 +1200,6 @@ app.on_shutdown.append(lambda _: on_shutdown_webhook())
 # ============================================
 # ТОЧКА ВХОДА
 # ============================================
-
 if __name__ == "__main__":
     if not WEBHOOK_URL:
         logger.critical("❌ WEBHOOK_URL не задан! Добавьте переменную в Amvera")
