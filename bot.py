@@ -793,25 +793,38 @@ async def process_article_text(message: Message, state: FSMContext):
 @dp.message(ArticleStates.waiting_for_time)
 async def process_article_time(message: Message, state: FSMContext):
     try:
-        publish_time = datetime.strptime(message.text.strip(), "%d.%m.%Y %H:%M")
-        if publish_time < datetime.now():
-            await message.answer("❌ Нельзя указать время в прошлом.")
+        # Получаем время от пользователя (МСК)
+        msk_time = datetime.strptime(message.text.strip(), "%d.%m.%Y %H:%M")
+        
+        # Текущее время по МСК (UTC+3)
+        now_msk = datetime.utcnow() + timedelta(hours=3)
+        
+        # Проверяем, что время не в прошлом (по МСК)
+        if msk_time < now_msk:
+            await message.answer(
+                f"❌ Нельзя указать время в прошлом!\n"
+                f"Текущее время МСК: {now_msk.strftime('%d.%m.%Y %H:%M')}\n"
+                f"Вы указали: {msk_time.strftime('%d.%m.%Y %H:%M')}"
+            )
             return
+        
         data = await state.get_data()
         article_text = data['article_text']
         
-        article_id = await db.add_article(article_text, publish_time)
+        # Сохраняем в БД время МСК (база сама сконвертирует при сравнении)
+        article_id = await db.add_article(article_text, msk_time)
         deep_link = f"@uriskonsult_bot?start=article_{article_id}"
         
         await message.answer(
             f"✅ **Статья #{article_id} добавлена!**\n\n"
             f"🔗 **Ссылка для тизера:**\n"
             f"{deep_link}\n\n"
-            f"📅 Публикация тизера запланирована на {publish_time.strftime('%d.%m.%Y %H:%M')} МСК."
+            f"📅 Публикация тизера запланирована на {msk_time.strftime('%d.%m.%Y %H:%M')} МСК."
         )
         await state.clear()
+        
     except ValueError:
-        await message.answer("❌ Неверный формат даты!")
+        await message.answer("❌ Неверный формат даты! Используйте ДД.ММ.ГГГГ ЧЧ:ММ")
         return
 
 @dp.message(Command("list_articles"))
