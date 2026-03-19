@@ -456,79 +456,58 @@ async def send_welcome_post(message: Message, source: str = "send_welcome_post")
     logger.info(f"✅ Текст отправлен. ID: {call_id}")
 
 # ============================================
-# DEEP LINKING
+# DEEP LINKING — переход по ссылке с параметром
 # ============================================
+
 @dp.message(CommandStart(deep_link=True))
 async def cmd_start_deep_link(message: Message, command: CommandObject):
     args = command.args
     
-    logger.info(f"🔗 DEEP LINK: получен args = {args}")
-    
     if args and args.startswith('article_'):
         try:
             article_id = int(args.replace('article_', ''))
-            logger.info(f"🔗 DEEP LINK: пытаемся получить статью #{article_id} от пользователя {message.from_user.id}")
+            logger.info(f"Deep link access to article {article_id} by user {message.from_user.id}")
             
             article = await db.get_article(article_id)
-            logger.info(f"🔗 DEEP LINK: результат db.get_article = {article}")
             
             if article:
-                logger.info(f"🔗 DEEP LINK: статья найдена, отправляем")
-                
-                # Получаем заголовок и полный текст
-                full_text = article['full_text']
-                lines = full_text.split('\n')
-                title = lines[0].strip() if lines else "Статья"
-                
-                # Создаём клавиатуру (ТРИ КНОПКИ В РЯД)
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text="📥 Скачать документ", callback_data=f"download_{article_id}"),
-                    InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main"),
-                    InlineKeyboardButton(text="❓ Консультация", callback_data="menu_consult")
-                ]])
-                
-                # Отправляем приветствие
-                await message.answer(
-                    "👋 Вы находитесь в чат-боте юриста Эдуарда Секриера\n\n"
-                    "Здесь вы можете получить полный разбор темы, скачать документы или задать вопрос.",
-                    reply_markup=keyboard  # Кнопки сразу под приветствием
+                # 1. Короткое приветствие + кнопка навигации
+                text_top = (
+                    "📬 <b>Вы в чат-боте Эдуарда Секриера.</b>\n"
+                    "Здесь можно обсудить тему, задать вопрос или сразу перейти в меню."
                 )
                 
-                # Пробуем отправить фото
-                photo_path = os.path.join("images", "max_full.jpg")
-                if os.path.exists(photo_path):
-                    try:
-                        photo = FSInputFile(photo_path)
-                        await message.answer_photo(photo, caption="📊 Штрафы для УК — до 300 000 ₽")
-                        logger.info("🔗 DEEP LINK: фото отправлено")
-                    except Exception as e:
-                        logger.error(f"🔗 DEEP LINK: ошибка отправки фото: {e}")
+                keyboard_top = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🏠 ГЛАВНОЕ МЕНЮ", callback_data="back_to_main")]
+                ])
                 
-                # Отправляем полный текст статьи (БЕЗ ДУБЛИРУЮЩИХСЯ КНОПОК)
+                await message.answer(text_top, parse_mode="HTML", reply_markup=keyboard_top)
+                
+                # 2. Заголовок статьи
+                article_title = article['full_text'].split('\n')[0][:100]
+                
+                # 3. Текст статьи
                 await message.answer(
-                    f"📄 **{title}**\n\n{full_text}",
-                    parse_mode='HTML'
+                    f"📄 <b>{article_title}</b>\n\n{article['full_text']}",
+                    parse_mode="HTML"
                 )
-                logger.info(f"🔗 DEEP LINK: полный текст статьи отправлен")
+                
             else:
-                logger.error(f"🔗 DEEP LINK: статья #{article_id} не найдена в БД")
                 await message.answer("❌ Статья не найдена или была удалена.")
                 
         except ValueError:
-            logger.error(f"🔗 DEEP LINK: неверный ID статьи: {args}")
             await message.answer("❌ Неверная ссылка на статью.")
         except Exception as e:
-            logger.error(f"🔗 DEEP LINK: ошибка: {e}")
+            logger.error(f"Error in deep link processing: {e}")
             await message.answer("❌ Произошла ошибка при загрузке статьи.")
+    
     elif args == 'consult':
-        logger.info("🔗 DEEP LINK: переход на консультацию")
         await cmd_consult(message)
     else:
-        logger.info(f"🔗 DEEP LINK: неизвестный args {args}, запускаем обычный start")
         await cmd_start(message)
 
 # ============================================
-# КОМАНДА /start
+# КОМАНДА /start (обычный)
 # ============================================
 
 @dp.message(Command("start"))
