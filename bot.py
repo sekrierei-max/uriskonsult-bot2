@@ -1241,6 +1241,37 @@ app.on_startup.append(lambda _: on_startup_webhook())
 app.on_shutdown.append(lambda _: on_shutdown_webhook())
 
 # ============================================
+# КОМАНДА ДЛЯ ПРОВЕРКИ ФОТО
+# ============================================
+@dp.message(Command("check_photo"))
+@admin_only
+async def cmd_check_photo(message: Message):
+    """Проверяет наличие фото MAX"""
+    photo_path = os.path.join("images", "max_full.jpg")
+    exists = os.path.exists(photo_path)
+    
+    # Проверяем папку images
+    if os.path.exists("images"):
+        files = os.listdir("images")
+        text = f"📸 Папка images **существует**\n"
+        text += f"📊 Всего файлов: {len(files)}\n"
+        if files:
+            text += f"📄 Файлы: {', '.join(files[:5])}"
+            if len(files) > 5:
+                text += f" и еще {len(files)-5}"
+        else:
+            text += "❌ Папка images пуста"
+    else:
+        text = "❌ Папка images **не существует**"
+    
+    text += f"\n\n📸 Файл `max_full.jpg` существует: **{exists}**"
+    
+    if exists:
+        text += f"\n📁 Полный путь: `{photo_path}`"
+    
+    await message.answer(text, parse_mode='HTML')
+
+# ============================================
 # ТОЧКА ВХОДА
 # ============================================
 if __name__ == "__main__":
