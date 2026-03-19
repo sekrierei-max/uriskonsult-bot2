@@ -1185,29 +1185,91 @@ async def run_scheduler():
             await asyncio.sleep(10)
 
 # ============================================
-# WEBHOOK НАСТРОЙКИ
+# WEBHOOK НАСТРОЙКИ С ДИАГНОСТИКОЙ
 # ============================================
+import json
+from aiohttp import web
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 WEBHOOK_PATH = "/webhook"
 PORT = int(os.getenv("PORT", 80))
 
-# Простой обработчик для проверки доступности сервера
-async def handle_root(request):
-    return web.Response(text="🤖 Бот работает! Сервер доступен извне.")
+# ============================================
+# ДИАГНОСТИЧЕСКИЙ MIDDLEWARE
+# ============================================
+@web.middleware
+async def log_requests(request, handler):
+    """Логирует все входящие HTTP-запросы"""
+    print(f"\n🔴🔴🔴 ПОЛУЧЕН HTTP-ЗАПРОС: {request.method} {request.path}")
+    print(f"🔴 Headers: {dict(request.headers)}")
+    
+    # Пробуем прочитать тело запроса
+    try:
+        body = await request.text()
+        if body:
+            # Безопасно логируем (обрезаем до 500 символов)
+            body_preview = body[:500] + "..." if len(body) > 500 else body
+            print(f"🔴 Body (первые 500 символов): {body_preview}")
+            
+            # Если это JSON, попробуем распарсить для красоты
+            if 'application/json' in request.headers.get('Content-Type', ''):
+                try:
+                    json_body = json.loads(body)
+                    print(f"🔴 JSON структура: {json.dumps(json_body, indent=2, ensure_ascii=False)[:500]}")
+                except:
+                    pass
+    except Exception as e:
+        print(f"🔴 Не удалось прочитать тело запроса: {e}")
+    
+    # Продолжаем обработку
+    response = await handler(request)
+    print(f"🔴 Ответ: {response.status}")
+    return response
 
+# ============================================
+# ОБРАБОТЧИКИ
+# ============================================
+async def handle_root(request):
+    """Корневой маршрут для проверки доступности"""
+    return web.Response(
+        text="✅ Бот работает! Webhook endpoint: /webhook\n"
+             f"📊 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+             f"🔗 URL для вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}"
+    )
+
+async def handle_health(request):
+    """Health check для Amvera"""
+    return web.Response(text="OK", status=200)
+
+# ============================================
+# WEBHOOK ФУНКЦИИ
+# ============================================
 async def on_startup_webhook():
     """Действия при старте вебхука"""
+    print("\n🚀🚀🚀 ЗАПУСК WEBHOOK НАСТРОЙКИ")
+    
     if not WEBHOOK_URL:
         logger.error("❌ WEBHOOK_URL не задан! Бот не сможет работать.")
+        print("❌ WEBHOOK_URL не задан!")
         return
     
-    await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
-    logger.info(f"✅ Webhook установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
+    print(f"📌 Устанавливаем вебхук на: {WEBHOOK_URL}{WEBHOOK_PATH}")
     
-    # Пропускаем старые обновления
+    # Принудительно удаляем старый вебхук и все ожидающие обновления
     await bot.delete_webhook(drop_pending_updates=True)
-    logger.info("✅ Пропущены старые обновления")
+    print("✅ Старый вебхук удалён, ожидающие обновления сброшены")
+    
+    # Устанавливаем новый вебхук
+    await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
+    print(f"✅ Вебхук установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
+    
+    # Проверяем, что вебхук установлен
+    webhook_info = await bot.get_webhook_info()
+    print(f"📊 Информация о вебхуке:")
+    print(f"   URL: {webhook_info.url}")
+    print(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
+    print(f"   Последняя ошибка: {webhook_info.last_error_message}")
     
     # Запускаем планировщик в фоне
     asyncio.create_task(run_scheduler())
@@ -1217,25 +1279,32 @@ async def on_startup_webhook():
     await db.connect()
     
     logger.info("✅ Бот готов к работе через webhook")
+    print("✅ Бот готов к работе через webhook")
 
 async def on_shutdown_webhook():
     """Действия при остановке"""
+    print("\n🛑🛑🛑 ОСТАНОВКА WEBHOOK")
     await bot.delete_webhook()
-    logger.info("✅ Webhook удален")
+    print("✅ Webhook удален")
     
     if hasattr(db, 'pool') and db.pool:
         await db.pool.close()
     
     await bot.session.close()
     logger.info("👋 Бот остановлен")
+    print("👋 Бот остановлен")
 
-# Создаём aiohttp приложение
-app = web.Application()
+# ============================================
+# СОЗДАЁМ ПРИЛОЖЕНИЕ С ДИАГНОСТИКОЙ
+# ============================================
+app = web.Application(middlewares=[log_requests])
 
-# Добавляем тестовый корневой маршрут
+# Добавляем тестовые маршруты
 app.router.add_get('/', handle_root)
+app.router.add_get('/health', handle_health)
 
-# Регистрируем обработчик вебхуков
+# Регистрируем обработчик вебхуков (ВАЖНО: путь должен совпадать с WEBHOOK_PATH)
+print(f"📌 Регистрируем обработчик вебхуков на путь: {WEBHOOK_PATH}")
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 
 # Привязываем функции запуска и остановки
@@ -1243,35 +1312,9 @@ app.on_startup.append(lambda _: on_startup_webhook())
 app.on_shutdown.append(lambda _: on_shutdown_webhook())
 
 # ============================================
-# КОМАНДА ДЛЯ ПРОВЕРКИ ФОТО
+# КОМАНДА ДЛЯ ПРОВЕРКИ ФОТО (УЖЕ ЕСТЬ)
 # ============================================
-@dp.message(Command("check_photo"))
-@admin_only
-async def cmd_check_photo(message: Message):
-    """Проверяет наличие фото MAX"""
-    photo_path = os.path.join("images", "max_full.jpg")
-    exists = os.path.exists(photo_path)
-    
-    # Проверяем папку images
-    if os.path.exists("images"):
-        files = os.listdir("images")
-        text = f"📸 Папка images **существует**\n"
-        text += f"📊 Всего файлов: {len(files)}\n"
-        if files:
-            text += f"📄 Файлы: {', '.join(files[:5])}"
-            if len(files) > 5:
-                text += f" и еще {len(files)-5}"
-        else:
-            text += "❌ Папка images пуста"
-    else:
-        text = "❌ Папка images **не существует**"
-    
-    text += f"\n\n📸 Файл `max_full.jpg` существует: **{exists}**"
-    
-    if exists:
-        text += f"\n📁 Полный путь: `{photo_path}`"
-    
-    await message.answer(text, parse_mode='HTML')
+# (оставьте как есть)
 
 # ============================================
 # ТОЧКА ВХОДА
@@ -1279,7 +1322,15 @@ async def cmd_check_photo(message: Message):
 if __name__ == "__main__":
     if not WEBHOOK_URL:
         logger.critical("❌ WEBHOOK_URL не задан! Добавьте переменную в Amvera")
+        print("❌ WEBHOOK_URL не задан! Добавьте переменную в Amvera")
         sys.exit(1)
+    
+    print(f"\n🚀 ЗАПУСК ВЕБ-СЕРВЕРА")
+    print(f"📌 Порт: {PORT}")
+    print(f"📌 Хост: 0.0.0.0 (слушаем все интерфейсы)")
+    print(f"📌 Домен: {WEBHOOK_URL}")
+    print(f"📌 Путь вебхука: {WEBHOOK_PATH}")
+    print(f"📌 Полный URL вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}")
     
     logger.info(f"🚀 Запуск веб-сервера на порту {PORT} (хост: 0.0.0.0)")
     # ВАЖНО: host="0.0.0.0" - слушаем все интерфейсы
