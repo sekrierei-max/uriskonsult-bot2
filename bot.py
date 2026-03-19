@@ -1569,12 +1569,23 @@ async def on_shutdown():  # ← ЭТА ФУНКЦИЯ ДОЛЖНА БЫТЬ ДО
     logger.info("👋 Bot stopped")
 
 # ============================================
-# ПРОСТОЙ ПЛАНИРОВЩИК БЕЗ APSCHEDULER (МАКСИМАЛЬНАЯ ЗАЩИТА)
+# ПРОСТОЙ ПЛАНИРОВЩИК БЕЗ APSCHEDULER (МАКСИМАЛЬНАЯ ЗАЩИТА + ТЕСТ)
 # ============================================
 
 async def run_scheduler():
     """Простой фоновый планировщик с максимальной защитой"""
     logger.info("🚀 Простой планировщик запущен")
+    
+    # ТЕСТОВАЯ ПРОВЕРКА СРАЗУ ПОСЛЕ ЗАПУСКА
+    try:
+        logger.info("🔄 Тестовая проверка планировщика...")
+        test_posts = await db.get_pending_posts()
+        logger.info(f"✅ Тестовая проверка: найдено {len(test_posts)} постов")
+        if test_posts:
+            for post in test_posts:
+                logger.info(f"   Пост ID {post['id']}: время {post.get('scheduled_time')}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка тестовой проверки: {e}")
     
     while True:
         try:
