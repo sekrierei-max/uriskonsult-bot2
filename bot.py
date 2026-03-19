@@ -1255,82 +1255,25 @@ def get_channel_post_keyboard(article_id: int):
     return builder.as_markup()
 
 # ============================================
-# ПРОСТОЙ ПЛАНИРОВЩИК С ФОТО И УМНЫМИ ТИЗЕРАМИ
+# ПРОСТОЙ ПЛАНИРОВЩИК (МАКСИМАЛЬНО БЕЗОПАСНАЯ ВЕРСИЯ)
 # ============================================
 
 async def run_scheduler():
-    """Простой фоновый планировщик с фото и умными тизерами"""
+    """Максимально безопасный планировщик"""
     logger.info("🚀 Простой планировщик запущен")
     
     while True:
         try:
             await asyncio.sleep(30)
+            logger.info(f"⏰ Пинг планировщика")
             
-            current_time = datetime.now()
-            logger.info(f"⏰ Проверка постов в {current_time.strftime('%H:%M:%S')}")
-            
-            if not hasattr(db, 'get_pending_posts'):
-                logger.error("❌ Нет метода get_pending_posts в database.py")
-                continue
-            
-            try:
-                posts = await db.get_pending_posts()
-            except Exception as e:
-                logger.error(f"❌ Ошибка при получении постов: {e}")
-                continue
-            
-            if posts:
-                logger.info(f"📋 Найдено {len(posts)} постов для публикации")
+            # Просто проверяем, что бот жив
+            # БЕЗ вызова get_pending_posts, БЕЗ отправки сообщений
+            logger.debug("Планировщик работает")
                 
-                for post in posts:
-                    try:
-                        channel = config['CHANNEL_ID']
-                        
-                        # Определяем тип статьи и форматируем тизер
-                        article_type = detect_article_type(post['content'])
-                        post_text = format_teaser_by_type(post['content'], article_type)
-                        
-                        # Путь к фото
-                        photo_path = os.path.join("images", "max_full.jpg")
-                        
-                        # Отправляем в канал с фото и кнопкой
-                        if os.path.exists(photo_path):
-                            photo = FSInputFile(photo_path)
-                            await bot.send_photo(
-                                chat_id=channel,
-                                photo=photo,
-                                caption=post_text,
-                                parse_mode='HTML',
-                                reply_markup=get_channel_post_keyboard(post['id'])
-                            )
-                            logger.info(f"✅ Пост {post['id']} опубликован в канале с фото и кнопкой")
-                        else:
-                            # Если фото нет, отправляем только текст
-                            await bot.send_message(
-                                chat_id=channel,
-                                text=post_text,
-                                parse_mode='HTML',
-                                reply_markup=get_channel_post_keyboard(post['id'])
-                            )
-                            logger.warning(f"⚠️ Пост {post['id']} опубликован без фото (файл не найден)")
-                        
-                        # Обновляем статус
-                        if hasattr(db, 'update_post_status'):
-                            await db.update_post_status(post['id'], 'published')
-                            
-                    except Exception as e:
-                        logger.error(f"❌ Ошибка публикации поста {post['id']}: {e}")
-            else:
-                logger.info("📭 Нет постов для публикации")
-                
-        except asyncio.CancelledError:
-            logger.info("🛑 Планировщик остановлен")
-            break
         except Exception as e:
-            logger.error(f"❌ Критическая ошибка в планировщике: {e}")
-            logger.info("🔄 Перезапуск планировщика через 10 секунд...")
+            logger.error(f"❌ Ошибка в планировщике: {e}")
             await asyncio.sleep(10)
 
-# ============================================
 # ГЛАВНАЯ ФУНКЦИЯ ЗАПУСКА
 # ============================================
