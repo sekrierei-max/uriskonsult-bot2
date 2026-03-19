@@ -462,29 +462,41 @@ async def send_welcome_post(message: Message, source: str = "send_welcome_post")
 async def cmd_start_deep_link(message: Message, command: CommandObject):
     args = command.args
     
+    logger.info(f"🔗 DEEP LINK: получен args = {args}")
+    
     if args and args.startswith('article_'):
         try:
             article_id = int(args.replace('article_', ''))
-            logger.info(f"Deep link access to article {article_id} by user {message.from_user.id}")
+            logger.info(f"🔗 DEEP LINK: пытаемся получить статью #{article_id} от пользователя {message.from_user.id}")
             
             article = await db.get_article(article_id)
+            logger.info(f"🔗 DEEP LINK: результат db.get_article = {article}")
             
             if article:
+                logger.info(f"🔗 DEEP LINK: статья найдена, отправляем")
+                
+                # Отправляем приветствие
                 await message.answer(
                     "👋 Вы находитесь в чат-боте юриста Эдуарда Секриера\n\n"
                     "Здесь вы можете получить полный разбор темы, скачать документы или задать вопрос."
                 )
                 
+                # Пробуем отправить фото
                 photo_path = os.path.join("images", "max_full.jpg")
                 if os.path.exists(photo_path):
                     try:
                         photo = FSInputFile(photo_path)
                         await message.answer_photo(photo, caption="📊 Штрафы для УК — до 300 000 ₽")
+                        logger.info("🔗 DEEP LINK: фото отправлено")
                     except Exception as e:
-                        logger.error(f"Error sending photo: {e}")
+                        logger.error(f"🔗 DEEP LINK: ошибка отправки фото: {e}")
                 
-                article_title = article['full_text'].split('\n')[0][:50] + "..." if len(article['full_text'].split('\n')[0]) > 50 else article['full_text'].split('\n')[0]
+                # Получаем заголовок статьи
+                full_text = article['full_text']
+                lines = full_text.split('\n')
+                title = lines[0].strip() if lines else "Статья"
                 
+                # Создаём клавиатуру
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [
                         InlineKeyboardButton(text="📥 Скачать документ", callback_data=f"download_{article_id}"),
@@ -493,25 +505,34 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
                     ]
                 ])
                 
+                # Отправляем полный текст статьи
                 await message.answer(
-                    f"📄 {article_title}\n\n{article['full_text']}",
-                    reply_markup=keyboard
+                    f"📄 **{title}**\n\n{full_text}",
+                    reply_markup=keyboard,
+                    parse_mode='HTML'
                 )
+                logger.info(f"🔗 DEEP LINK: полный текст статьи отправлен")
             else:
+                logger.error(f"🔗 DEEP LINK: статья #{article_id} не найдена в БД")
                 await message.answer("❌ Статья не найдена или была удалена.")
+                
         except ValueError:
+            logger.error(f"🔗 DEEP LINK: неверный ID статьи: {args}")
             await message.answer("❌ Неверная ссылка на статью.")
         except Exception as e:
-            logger.error(f"Error in deep link processing: {e}")
+            logger.error(f"🔗 DEEP LINK: ошибка: {e}")
             await message.answer("❌ Произошла ошибка при загрузке статьи.")
     elif args == 'consult':
+        logger.info("🔗 DEEP LINK: переход на консультацию")
         await cmd_consult(message)
     else:
+        logger.info(f"🔗 DEEP LINK: неизвестный args {args}, запускаем обычный start")
         await cmd_start(message)
 
 # ============================================
 # КОМАНДА /start
 # ============================================
+
 @dp.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext = None):
     call_id = str(uuid.uuid4())[:8]
