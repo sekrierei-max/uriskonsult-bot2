@@ -721,8 +721,9 @@ async def cmd_consult(message: Message):
 # ============================================
 class ArticleStates(StatesGroup):
     waiting_for_text = State()
-    waiting_for_photo = State()
+    waiting_for_photo = State()  # ДОБАВЛЕНО
     waiting_for_time = State()
+
 # ============================================
 # АДМИН-КОМАНДЫ (через кнопки)
 # ============================================
@@ -827,6 +828,26 @@ async def process_article_text(message: Message, state: FSMContext):
         await message.answer("❌ Пожалуйста, отправьте текст статьи.")
         return
     await state.update_data(article_text=message.text)
+    
+    await message.answer(
+        "📸 Отправьте фото для тизера\n\n"
+        "Фото будет автоматически сжато до ~500 КБ\n"
+        "Если не отправите фото, статья сохранится без него"
+    )
+    await state.set_state(ArticleStates.waiting_for_photo)
+
+@dp.message(ArticleStates.waiting_for_photo)
+async def process_article_photo(message: Message, state: FSMContext):
+    if not message.photo:
+        await message.answer(
+            "⚠️ Фото не получено. Продолжаем без фото.\n\n"
+            "📅 Укажите дату и время публикации:"
+        )
+        await state.set_state(ArticleStates.waiting_for_time)
+        return
+    
+    await state.update_data(photo_message=message)
+    
     example = datetime.now() + timedelta(hours=1)
     example_str = example.strftime("%d.%m.%Y %H:%M")
     await message.answer(
@@ -855,14 +876,28 @@ async def process_article_time(message: Message, state: FSMContext):
         article_text = data['article_text']
         
         article_id = await db.add_article(article_text, msk_time)
+        
+        photo_path = None
+        if 'photo_message' in data:
+            try:
+                photo_path = await compress_and_save_photo(data['photo_message'], article_id)
+                await db.update_article_photo(article_id, photo_path)
+                logger.info(f"✅ Фото для статьи #{article_id} сохранено: {photo_path}")
+            except Exception as e:
+                logger.error(f"❌ Ошибка сохранения фото: {e}")
+        
         deep_link = f"@uriskonsult_bot?start=article_{article_id}"
         
-        await message.answer(
-            f"✅ **Статья #{article_id} добавлена!**\n\n"
-            f"🔗 **Ссылка для тизера:**\n"
-            f"{deep_link}\n\n"
-            f"📅 Публикация тизера запланирована на {msk_time.strftime('%d.%m.%Y %H:%M')} МСК."
-        )
+        response = f"✅ **Статья #{article_id} добавлена!**\n\n"
+        response += f"🔗 **Ссылка для тизера:**\n{deep_link}\n\n"
+        response += f"📅 Публикация тизера запланирована на {msk_time.strftime('%d.%m.%Y %H:%M')} МСК.\n"
+        
+        if photo_path:
+            response += f"\n📸 Фото загружено и сжато"
+        else:
+            response += f"\n⚠️ Статья сохранена без фото"
+        
+        await message.answer(response)
         await state.clear()
         
     except ValueError:
@@ -906,6 +941,7 @@ async def cmd_edit_article(message: Message, **kwargs):
 # ============================================
 # КОМАНДЫ СТАТУСА
 # ============================================
+
 @dp.message(Command("status", "stats"))
 @admin_only
 async def cmd_status(message: Message, **kwargs):
