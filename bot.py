@@ -1148,10 +1148,13 @@ async def run_scheduler():
 # WEBHOOK НАСТРОЙКИ
 # ============================================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-# ВАЖНО: Создайте переменную WEBHOOK_URL в Amvera!
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 WEBHOOK_PATH = "/webhook"
 PORT = int(os.getenv("PORT", 80))
+
+# Простой обработчик для проверки доступности сервера
+async def handle_root(request):
+    return web.Response(text="🤖 Бот работает! Сервер доступен извне.")
 
 async def on_startup_webhook():
     """Действия при старте вебхука"""
@@ -1159,11 +1162,10 @@ async def on_startup_webhook():
         logger.error("❌ WEBHOOK_URL не задан! Бот не сможет работать.")
         return
     
-    # Устанавливаем вебхук
     await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
     logger.info(f"✅ Webhook установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
     
-    # ⚠️ ВАЖНО: пропускаем все старые обновления
+    # Пропускаем старые обновления
     await bot.delete_webhook(drop_pending_updates=True)
     logger.info("✅ Пропущены старые обновления")
     
@@ -1190,6 +1192,9 @@ async def on_shutdown_webhook():
 # Создаём aiohttp приложение
 app = web.Application()
 
+# Добавляем тестовый корневой маршрут
+app.router.add_get('/', handle_root)
+
 # Регистрируем обработчик вебхуков
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 
@@ -1200,7 +1205,7 @@ app.on_shutdown.append(lambda _: on_shutdown_webhook())
 # ============================================
 # ТОЧКА ВХОДА
 # ============================================
-if __name__ == "__main__":
+    if __name__ == "__main__":
     if not WEBHOOK_URL:
         logger.critical("❌ WEBHOOK_URL не задан! Добавьте переменную в Amvera")
         sys.exit(1)
