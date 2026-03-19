@@ -562,6 +562,7 @@ async def cmd_help(message: Message):
         "/cases - Кейсы\n\n"
     )
     
+    # Проверяем, является ли пользователь администратором
     is_admin_user = message.from_user.id == config.get('ADMIN_ID', 0)
     
     if is_admin_user:
@@ -569,6 +570,7 @@ async def cmd_help(message: Message):
             "🔰 Для администратора:\n"
             "/admin - Войти в панель управления\n"
             "/test_channel - Проверить доступ к каналу\n"
+            "/check_photo - Проверить наличие фото\n"
             "/add_article - Добавить статью\n"
             "/list_articles - Список статей\n"
             "/del_article [ID] - Удалить статью\n"
