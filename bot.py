@@ -1155,23 +1155,39 @@ async def run_scheduler():
                         channel = config['CHANNEL_ID']
                         
                         # Форматируем пост
-                        title = post['content'].split('\n')[0][:50]
-                        body = post['content'][50:300] + "..."
+                        full_text = post['content']
+                        lines = full_text.split('\n')
+                        title = lines[0].strip() if lines else "Статья"
+                        body = ' '.join([line.strip() for line in lines[1:] if line.strip()])[:300]
+                        
                         post_text = (
-                            f"🔥 **{title}**\n\n"
-                            f"{body}\n\n"
-                            f"⚠️ Читайте полностью в боте 👇"
+                            f"⚜️ **{title}**\n\n"
+                            f"{body}...\n\n"
+                            f"⚠️ Нажмите кнопку ниже, чтобы прочитать полностью в боте 👇"
                         )
                         
-                        # Отправляем в канал с кнопкой
-                        await bot.send_message(
-                            chat_id=channel,
-                            text=post_text,
-                            parse_mode='HTML',
-                            reply_markup=get_channel_post_keyboard(post['id'])
-                        )
-                        logger.info(f"✅ Пост {post['id']} опубликован")
-                        
+                        # Пробуем отправить с фото
+                        photo_path = os.path.join("images", "max_full.jpg")
+                        if os.path.exists(photo_path):
+                            photo = FSInputFile(photo_path)
+                            await bot.send_photo(
+                                chat_id=channel,
+                                photo=photo,
+                                caption=post_text,
+                                parse_mode='HTML',
+                                reply_markup=get_channel_post_keyboard(post['id'])
+                            )
+                            logger.info(f"✅ Пост {post['id']} опубликован в канале с фото")
+                        else:
+                            # Если фото нет, отправляем только текст
+                            await bot.send_message(
+                                chat_id=channel,
+                                text=post_text,
+                                parse_mode='HTML',
+                                reply_markup=get_channel_post_keyboard(post['id'])
+                            )
+                            logger.warning(f"⚠️ Пост {post['id']} опубликован без фото")
+                            
                         # Обновляем статус
                         await db.update_post_status(post['id'], 'published')
                             
@@ -1185,8 +1201,9 @@ async def run_scheduler():
             await asyncio.sleep(10)
 
 # ============================================
-# WEBHOOK НАСТРОЙКИ С ДИАГНОСТИКОЙ
+# СЛЕДУЮЩИЙ БЛОК (WEBHOOK НАСТРОЙКИ ИЛИ ДРУГОЙ)
 # ============================================
+
 import json
 from aiohttp import web
 
