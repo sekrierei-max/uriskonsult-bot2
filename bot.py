@@ -1159,8 +1159,13 @@ async def on_startup_webhook():
         logger.error("❌ WEBHOOK_URL не задан! Бот не сможет работать.")
         return
     
+    # Устанавливаем вебхук
     await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
     logger.info(f"✅ Webhook установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
+    
+    # ⚠️ ВАЖНО: пропускаем все старые обновления
+    await bot.delete_webhook(drop_pending_updates=True)
+    logger.info("✅ Пропущены старые обновления")
     
     # Запускаем планировщик в фоне
     asyncio.create_task(run_scheduler())
@@ -1195,6 +1200,7 @@ app.on_shutdown.append(lambda _: on_shutdown_webhook())
 # ============================================
 # ТОЧКА ВХОДА
 # ============================================
+
 if __name__ == "__main__":
     if not WEBHOOK_URL:
         logger.critical("❌ WEBHOOK_URL не задан! Добавьте переменную в Amvera")
