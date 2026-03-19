@@ -475,10 +475,23 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
             if article:
                 logger.info(f"🔗 DEEP LINK: статья найдена, отправляем")
                 
+                # Получаем заголовок и полный текст
+                full_text = article['full_text']
+                lines = full_text.split('\n')
+                title = lines[0].strip() if lines else "Статья"
+                
+                # Создаём клавиатуру (ТРИ КНОПКИ В РЯД)
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="📥 Скачать документ", callback_data=f"download_{article_id}"),
+                    InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main"),
+                    InlineKeyboardButton(text="❓ Консультация", callback_data="menu_consult")
+                ]])
+                
                 # Отправляем приветствие
                 await message.answer(
                     "👋 Вы находитесь в чат-боте юриста Эдуарда Секриера\n\n"
-                    "Здесь вы можете получить полный разбор темы, скачать документы или задать вопрос."
+                    "Здесь вы можете получить полный разбор темы, скачать документы или задать вопрос.",
+                    reply_markup=keyboard  # Кнопки сразу под приветствием
                 )
                 
                 # Пробуем отправить фото
@@ -491,24 +504,9 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
                     except Exception as e:
                         logger.error(f"🔗 DEEP LINK: ошибка отправки фото: {e}")
                 
-                # Получаем заголовок статьи
-                full_text = article['full_text']
-                lines = full_text.split('\n')
-                title = lines[0].strip() if lines else "Статья"
-                
-                # Создаём клавиатуру
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [
-                        InlineKeyboardButton(text="📥 Скачать документ", callback_data=f"download_{article_id}"),
-                        InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main"),
-                        InlineKeyboardButton(text="❓ Консультация", callback_data="menu_consult")
-                    ]
-                ])
-                
-                # Отправляем полный текст статьи
+                # Отправляем полный текст статьи (БЕЗ ДУБЛИРУЮЩИХСЯ КНОПОК)
                 await message.answer(
                     f"📄 **{title}**\n\n{full_text}",
-                    reply_markup=keyboard,
                     parse_mode='HTML'
                 )
                 logger.info(f"🔗 DEEP LINK: полный текст статьи отправлен")
