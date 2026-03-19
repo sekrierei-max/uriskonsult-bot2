@@ -1147,7 +1147,7 @@ def get_channel_post_keyboard(article_id: int):
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
         text="🔴 ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ", 
-        url=f"https://t.me/uriskonsult_bot?start=article_{article_id}"  # ← ЭТО НАДО ИЗМЕНИТЬ
+        url=f"https://t.me/uriskonsult_test_bot?start=article_{article_id}"
     ))
     return builder.as_markup()
 
