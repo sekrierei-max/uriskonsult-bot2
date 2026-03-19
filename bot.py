@@ -1203,57 +1203,32 @@ def detect_article_type(text: str) -> str:
         return "instruction"
     elif any(word in text_lower for word in ['кейс', 'пример', 'ситуация', 'дело', 'случай']):
         return "case"
-    elif any(word in text_lower for word in ['новость', 'изменения', 'теперь', 'начало']):
-        return "news"
     else:
-        return "news"  # По умолчанию
+        return "news"
 
 def format_teaser_by_type(full_text: str, article_type: str = "news") -> str:
     """
     Форматирует тизер в зависимости от типа статьи
-    article_type: news, instruction, case
     """
     lines = full_text.strip().split('\n')
     title = lines[0].strip() if lines else "Статья"
+    body = ' '.join([line.strip() for line in lines[1:] if line.strip()])[:400]
     
-    # Собираем остальной текст
-    body = ' '.join([line.strip() for line in lines[1:] if line.strip()])
-    
-    # Обрезаем до 400 символов для тизера
-    if len(body) > 400:
-        last_space = body[:400].rfind(' ')
-        body = body[:last_space] + "..." if last_space > 0 else body[:400] + "..."
-    
-    # Шаблоны для разных типов статей
     templates = {
-        "news": (
-            f"⚜️ **{title}**\n\n"
-            f"🔹 **Главное:** {body}\n\n"
-            f"⚠️ Нажмите кнопку ниже, чтобы прочитать полностью в боте 👇"
-        ),
-        "instruction": (
-            f"📋 **{title}**\n\n"
-            f"🔹 **Пошаговая инструкция:**\n{body}\n\n"
-            f"✅ Полная версия с деталями — в боте 👇"
-        ),
-        "case": (
-            f"⚖️ **{title}**\n\n"
-            f"🔹 **Суть дела:** {body}\n\n"
-            f"📌 Результат и юридические детали — в боте 👇"
-        )
+        "news": f"⚜️ **{title}**\n\n🔹 **Главное:** {body}...\n\n⚠️ Читайте полностью в боте 👇",
+        "instruction": f"📋 **{title}**\n\n🔹 **Пошаговая инструкция:**\n{body}...\n\n✅ Полная версия в боте 👇",
+        "case": f"⚖️ **{title}**\n\n🔹 **Суть дела:** {body}...\n\n📌 Детали в боте 👇"
     }
-    
     return templates.get(article_type, templates["news"])
 
 def get_channel_post_keyboard(article_id: int):
-    """Клавиатура для поста в канале с красной кнопкой"""
+    """Клавиатура для поста в канале"""
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
         text="🔴 ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ", 
         url=f"https://t.me/uriskonsult_bot?start=article_{article_id}"
     ))
     return builder.as_markup()
-
 # ============================================
 # ПРОСТОЙ ПЛАНИРОВЩИК (МАКСИМАЛЬНО БЕЗОПАСНАЯ ВЕРСИЯ)
 # ============================================
