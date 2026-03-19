@@ -24,7 +24,8 @@ class Database:
             'full_text': text,
             'teaser_time': publish_time,  # Время в МСК от пользователя
             'created_at': datetime.now(),
-            'published': False
+            'published': False,
+            'teaser_photo': None  # Добавлено поле для фото
         }
         self.next_id += 1
         logger.info(f"📝 Добавлена тестовая статья #{article_id} на {publish_time} МСК")
@@ -104,7 +105,8 @@ class Database:
                         'post_type': 'teaser',
                         'content': article['full_text'],
                         'scheduled_time': teaser_time_msk,  # Сохраняем МСК для пользователя
-                        'status': 'pending'
+                        'status': 'pending',
+                        'teaser_photo': article.get('teaser_photo')  # Добавлено поле для фото
                     }
                     pending.append(pending_post)
                     article['published'] = True  # Помечаем как опубликованную
@@ -118,6 +120,15 @@ class Database:
         
         logger.info(f"📊 get_pending_posts: найдено {len(pending)} постов для публикации")
         return pending
+    
+    async def update_article_photo(self, article_id: int, photo_path: str):
+        """Обновляет путь к фото статьи"""
+        if article_id in self.articles:
+            self.articles[article_id]['teaser_photo'] = photo_path
+            logger.info(f"📸 Путь к фото для статьи #{article_id} сохранён: {photo_path}")
+            return True
+        logger.warning(f"⚠️ Статья #{article_id} не найдена, фото не сохранено")
+        return False
         
     async def update_post_status(self, post_id: int, status: str, fail_reason: str = None, retry_count: int = None):
         """Обновление статуса поста (для совместимости)"""
