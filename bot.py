@@ -34,6 +34,64 @@ from database import db
 from models import Article, ScheduledPost
 
 # ============================================
+# ФУНКЦИИ ДЛЯ РАБОТЫ С ФОТО
+# ============================================
+from PIL import Image
+import io
+import aiofiles
+
+async def compress_and_save_photo(message: Message, article_id: int) -> str:
+    """
+    Сжимает и сохраняет фото, возвращает путь к файлу
+    """
+    # Скачиваем фото
+    photo = message.photo[-1]  # Берём самое большое фото
+    file = await bot.get_file(photo.file_id)
+    file_path = file.file_path
+    photo_data = await bot.download_file(file_path)
+    
+    # Открываем изображение через PIL
+    img = Image.open(photo_data)
+    
+    # Конвертируем RGB если нужно
+    if img.mode in ('RGBA', 'LA', 'P'):
+        # Создаём белый фон для прозрачных изображений
+        background = Image.new('RGB', img.size, (255, 255, 255))
+        if img.mode == 'RGBA':
+            background.paste(img, mask=img.split()[3])
+        else:
+            background.paste(img)
+        img = background
+    
+    # Сжимаем до ~500 КБ бинарным поиском
+    target_size = 500 * 1024  # 500 КБ
+    quality_low, quality_high = 1, 95
+    best_quality = 85  # Начальное приближение
+    
+    # Создаём временный буфер для проверки размера
+    for _ in range(8):  # 8 итераций бинарного поиска
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG', quality=best_quality, optimize=True)
+        size = buffer.tell()
+        
+        if size > target_size:
+            quality_high = best_quality
+            best_quality = (quality_low + best_quality) // 2
+        else:
+            quality_low = best_quality
+            best_quality = (best_quality + quality_high) // 2
+    
+    # Сохраняем с оптимальным качеством
+    filename = f"article_{article_id}_teaser.jpg"
+    save_path = os.path.join("images", filename)
+    
+    # Сохраняем в файл
+    img.save(save_path, format='JPEG', quality=best_quality, optimize=True)
+    
+    logger.info(f"📸 Фото сохранено: {save_path}, размер: {os.path.getsize(save_path)} байт")
+    return save_path
+
+# ============================================
 # ПРИНУДИТЕЛЬНОЕ ЛОГИРОВАНИЕ
 # ============================================
 sys.stdout = open(1, 'w', encoding='utf-8', closefd=False)
