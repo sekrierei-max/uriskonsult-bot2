@@ -1255,27 +1255,6 @@ def get_channel_post_keyboard(article_id: int):
 # ПРОСТОЙ ПЛАНИРОВЩИК (БЕЗОПАСНАЯ ВЕРСИЯ С ФОРМАТИРОВАНИЕМ)
 # ============================================
 
-def get_channel_post_keyboard(article_id: int):
-    """Клавиатура для поста в канале"""
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(
-        text="🔴 ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ", 
-        url=f"https://t.me/uriskonsult_bot?start=article_{article_id}"
-    ))
-    return builder.as_markup()
-
-def format_simple_teaser(full_text: str) -> str:
-    """Простое форматирование тизера (без определения типа)"""
-    lines = full_text.strip().split('\n')
-    title = lines[0].strip() if lines else "Статья"
-    body = ' '.join([line.strip() for line in lines[1:] if line.strip()])[:400]
-    
-    return (
-        f"⚜️ **{title}**\n\n"
-        f"{body}...\n\n"
-        f"⚠️ Нажмите кнопку ниже, чтобы прочитать полностью в боте 👇"
-    )
-
 async def run_scheduler():
     """Безопасный планировщик с форматированием"""
     logger.info("🚀 Простой планировщик запущен")
