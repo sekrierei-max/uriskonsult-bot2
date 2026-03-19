@@ -1582,23 +1582,21 @@ async def on_shutdown():  # ← ЭТА ФУНКЦИЯ ДОЛЖНА БЫТЬ ДО
     logger.info("👋 Bot stopped")
 
 # ============================================
-# ПРОСТОЙ ПЛАНИРОВЩИК БЕЗ APSCHEDULER (МАКСИМАЛЬНАЯ ЗАЩИТА + ТЕСТ)
+# ПРОСТОЙ ПЛАНИРОВЩИК БЕЗ APSCHEDULER (С КНОПКАМИ В КАНАЛЕ)
 # ============================================
 
+def get_channel_post_keyboard(article_id: int):
+    """Клавиатура для поста в канале"""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="🔗 ЧИТАТЬ ПОЛНОСТЬЮ", 
+        url=f"https://t.me/uriskonsult_bot?start=article_{article_id}"
+    ))
+    return builder.as_markup()
+
 async def run_scheduler():
-    """Простой фоновый планировщик с максимальной защитой"""
+    """Простой фоновый планировщик с кнопками в канале"""
     logger.info("🚀 Простой планировщик запущен")
-    
-    # ТЕСТОВАЯ ПРОВЕРКА СРАЗУ ПОСЛЕ ЗАПУСКА
-    try:
-        logger.info("🔄 Тестовая проверка планировщика...")
-        test_posts = await db.get_pending_posts()
-        logger.info(f"✅ Тестовая проверка: найдено {len(test_posts)} постов")
-        if test_posts:
-            for post in test_posts:
-                logger.info(f"   Пост ID {post['id']}: время {post.get('scheduled_time')}")
-    except Exception as e:
-        logger.error(f"❌ Ошибка тестовой проверки: {e}")
     
     while True:
         try:
@@ -1606,7 +1604,6 @@ async def run_scheduler():
             await asyncio.sleep(30)
             
             current_time = datetime.now()
-            print(f"⏰ Проверка постов в {current_time.strftime('%H:%M:%S')}")
             logger.info(f"⏰ Проверка постов в {current_time.strftime('%H:%M:%S')}")
             
             # Проверяем, есть ли метод get_pending_posts
@@ -1627,19 +1624,31 @@ async def run_scheduler():
                     try:
                         channel = config['CHANNEL_ID']
                         
-                        # Отправляем в канал
+                        # Берём первую строку как заголовок
+                        title = post['content'].split(chr(10))[0]
+                        # Берём следующие 200 символов как анонс
+                        body = post['content'][len(title):300] + "..."
+                        
+                        post_text = (
+                            f"🔥 **{title}**\n\n"
+                            f"{body}\n\n"
+                            f"👉 Нажмите кнопку ниже, чтобы прочитать полностью"
+                        )
+                        
+                        # Отправляем в канал с кнопкой
                         await bot.send_message(
                             chat_id=channel,
-                            text=post['content'],
-                            parse_mode='HTML'
+                            text=post_text,
+                            parse_mode='HTML',
+                            reply_markup=get_channel_post_keyboard(post['id'])
                         )
-                        logger.info(f"✅ Пост {post['id']} опубликован")
+                        logger.info(f"✅ Пост {post['id']} опубликован в канале с кнопкой")
                         
                         # Обновляем статус
                         if hasattr(db, 'update_post_status'):
                             await db.update_post_status(post['id'], 'published')
                         else:
-                            logger.info(f"✅ Пост {post['id']} обработан (без обновления статуса)")
+                            logger.info(f"✅ Пост {post['id']} обработан")
                             
                     except Exception as e:
                         logger.error(f"❌ Ошибка публикации поста {post['id']}: {e}")
