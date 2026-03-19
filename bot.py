@@ -1206,4 +1206,5 @@ if __name__ == "__main__":
         sys.exit(1)
     
     logger.info(f"🚀 Запуск веб-сервера на порту {PORT}")
+    # ВАЖНО: host="0.0.0.0" - слушаем все интерфейсы
     web.run_app(app, host="0.0.0.0", port=PORT)
