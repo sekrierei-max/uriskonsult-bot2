@@ -1205,11 +1205,11 @@ app.on_shutdown.append(lambda _: on_shutdown_webhook())
 # ============================================
 # ТОЧКА ВХОДА
 # ============================================
-    if __name__ == "__main__":
+if __name__ == "__main__":
     if not WEBHOOK_URL:
         logger.critical("❌ WEBHOOK_URL не задан! Добавьте переменную в Amvera")
         sys.exit(1)
     
-    logger.info(f"🚀 Запуск веб-сервера на порту {PORT}")
+    logger.info(f"🚀 Запуск веб-сервера на порту {PORT} (хост: 0.0.0.0)")
     # ВАЖНО: host="0.0.0.0" - слушаем все интерфейсы
     web.run_app(app, host="0.0.0.0", port=PORT)
