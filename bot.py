@@ -57,12 +57,6 @@ print(f"🤖 Инициализация бота с токеном: {config['BOT
 bot = Bot(token=config['BOT_TOKEN'])
 dp = Dispatcher(storage=MemoryStorage())
 
-# Настройка логирования
-logger = setup_logger('bot')
-print(f"🤖 Инициализация бота с токеном: {config['BOT_TOKEN'][:10]}...")
-bot = Bot(token=config['BOT_TOKEN'])
-dp = Dispatcher(storage=MemoryStorage())
-
 # ============================================
 # ЗАЩИТА ОТ СПАМА ДЛЯ КОНСУЛЬТАЦИЙ
 # ============================================
