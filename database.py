@@ -1,29 +1,20 @@
-#!/usr/bin/env python3
 """
-Упрощённая версия database.py для тестирования без PostgreSQL
+Тестовая база данных для планировщика (в памяти)
 """
-
 import logging
 from datetime import datetime
-from typing import Optional, List, Dict, Any  # ← ВАЖНО: добавили List и Dict
+from typing import Dict, List, Optional, Any
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('bot')
 
 class Database:
-    """Класс-заглушка для тестирования"""
-    
     def __init__(self):
-        self.articles = {}
-        self.next_id = 1
+        self.articles = {}  # Хранилище статей в памяти
+        self.next_id = 1    # Счётчик для ID статей
     
     async def connect(self):
-        """Имитация подключения к БД"""
-        logger.info("✅ Тестовая БД подключена (без PostgreSQL)")
-        return True
-    
-    async def close(self):
-        """Закрытие соединения"""
-        logger.info("🛑 Тестовая БД отключена")
+        """Подключение к БД (заглушка)"""
+        logger.info("📦 Тестовая БД подключена (в памяти)")
     
     async def add_article(self, text: str, publish_time: datetime) -> int:
         """Добавление статьи в память"""
@@ -36,7 +27,7 @@ class Database:
             'published': False  # Добавлено для отслеживания
         }
         self.next_id += 1
-        logger.info(f"📝 Добавлена тестовая статья #{article_id}")
+        logger.info(f"📝 Добавлена тестовая статья #{article_id} на {publish_time}")
         return article_id
     
     async def get_article(self, article_id: int) -> Optional[Dict[str, Any]]:
@@ -57,24 +48,37 @@ class Database:
     
     async def get_scheduler_stats(self) -> Dict[str, int]:
         """Статистика (заглушка)"""
+        # Подсчитываем реальные данные
+        pending = 0
+        published = 0
+        
+        for article in self.articles.values():
+            if article.get('published', False):
+                published += 1
+            else:
+                teaser_time = article.get('teaser_time')
+                if teaser_time and teaser_time > datetime.now():
+                    pending += 1
+        
         return {
-            'pending': 0,
-            'published': 0,
+            'pending': pending,
+            'published': published,
             'failed': 0
         }
     
     async def get_pending_posts(self) -> List[Dict]:
         """
         Возвращает статьи, которые нужно опубликовать сейчас.
-        Для тестовой БД просто возвращаем все статьи,
-        у которых teaser_time <= текущего времени
+        Исправлено: учитываем часовой пояс
         """
-        now = datetime.now()
+        now_utc = datetime.now()  # Серверное время UTC
         pending = []
         
         for article_id, article in self.articles.items():
             teaser_time = article.get('teaser_time')
-            if teaser_time and teaser_time <= now and not article.get('published', False):
+            
+            # Проверяем: время публикации наступило И ещё не опубликовано
+            if teaser_time and teaser_time <= now_utc and not article.get('published', False):
                 # Создаём пост с нужными полями
                 pending_post = {
                     'id': article_id,
@@ -86,7 +90,12 @@ class Database:
                 }
                 pending.append(pending_post)
                 article['published'] = True  # Помечаем как опубликованную
-                logger.info(f"📊 Пост #{article_id} готов к публикации")
+                logger.info(f"📊 Пост #{article_id} готов к публикации (teaser_time={teaser_time}, now_utc={now_utc})")
+            elif teaser_time:
+                if teaser_time > now_utc:
+                    logger.debug(f"⏳ Пост #{article_id} ещё не готов: {teaser_time} > {now_utc}")
+                elif article.get('published', False):
+                    logger.debug(f"✅ Пост #{article_id} уже опубликован")
         
         logger.info(f"📊 get_pending_posts: найдено {len(pending)} постов")
         return pending
