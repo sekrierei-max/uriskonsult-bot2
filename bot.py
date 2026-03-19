@@ -1229,26 +1229,50 @@ def get_channel_post_keyboard(article_id: int):
         url=f"https://t.me/uriskonsult_bot?start=article_{article_id}"
     ))
     return builder.as_markup()
+
 # ============================================
-# ПРОСТОЙ ПЛАНИРОВЩИК (МАКСИМАЛЬНО БЕЗОПАСНАЯ ВЕРСИЯ)
+# ПРОСТОЙ ПЛАНИРОВЩИК (БЕЗОПАСНАЯ ВЕРСИЯ С ФОРМАТИРОВАНИЕМ)
 # ============================================
 
+def get_channel_post_keyboard(article_id: int):
+    """Клавиатура для поста в канале"""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="🔴 ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ", 
+        url=f"https://t.me/uriskonsult_bot?start=article_{article_id}"
+    ))
+    return builder.as_markup()
+
+def format_simple_teaser(full_text: str) -> str:
+    """Простое форматирование тизера (без определения типа)"""
+    lines = full_text.strip().split('\n')
+    title = lines[0].strip() if lines else "Статья"
+    body = ' '.join([line.strip() for line in lines[1:] if line.strip()])[:400]
+    
+    return (
+        f"⚜️ **{title}**\n\n"
+        f"{body}...\n\n"
+        f"⚠️ Нажмите кнопку ниже, чтобы прочитать полностью в боте 👇"
+    )
+
 async def run_scheduler():
-    """Максимально безопасный планировщик"""
+    """Безопасный планировщик с форматированием"""
     logger.info("🚀 Простой планировщик запущен")
     
     while True:
         try:
             await asyncio.sleep(30)
-            logger.info(f"⏰ Пинг планировщика")
             
-            # Просто проверяем, что бот жив
-            # БЕЗ вызова get_pending_posts, БЕЗ отправки сообщений
+            current_time = datetime.now()
+            logger.info(f"⏰ Пинг планировщика в {current_time.strftime('%H:%M:%S')}")
+            
+            # Только логируем, без обращений к БД
             logger.debug("Планировщик работает")
                 
         except Exception as e:
             logger.error(f"❌ Ошибка в планировщике: {e}")
             await asyncio.sleep(10)
 
+# ============================================
 # ГЛАВНАЯ ФУНКЦИЯ ЗАПУСКА
 # ============================================
