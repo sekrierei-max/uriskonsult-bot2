@@ -69,16 +69,23 @@ class Database:
     async def get_pending_posts(self) -> List[Dict]:
         """
         Возвращает статьи, которые нужно опубликовать сейчас.
-        Исправлено: учитываем часовой пояс
+        Исправлено: учитываем часовой пояс + максимальная отладка
         """
         now_utc = datetime.now()  # Серверное время UTC
         pending = []
         
+        logger.info(f"🔍 get_pending_posts: всего статей в БД: {len(self.articles)}")
+        
         for article_id, article in self.articles.items():
+            logger.info(f"🔍 Проверка статьи #{article_id}: {article}")
+            
             teaser_time = article.get('teaser_time')
+            published = article.get('published', False)
+            
+            logger.info(f"   teaser_time={teaser_time}, published={published}, now_utc={now_utc}")
             
             # Проверяем: время публикации наступило И ещё не опубликовано
-            if teaser_time and teaser_time <= now_utc and not article.get('published', False):
+            if teaser_time and teaser_time <= now_utc and not published:
                 # Создаём пост с нужными полями
                 pending_post = {
                     'id': article_id,
@@ -90,16 +97,18 @@ class Database:
                 }
                 pending.append(pending_post)
                 article['published'] = True  # Помечаем как опубликованную
-                logger.info(f"📊 Пост #{article_id} готов к публикации (teaser_time={teaser_time}, now_utc={now_utc})")
+                logger.info(f"📊 Пост #{article_id} ГОТОВ к публикации!")
             elif teaser_time:
                 if teaser_time > now_utc:
-                    logger.debug(f"⏳ Пост #{article_id} ещё не готов: {teaser_time} > {now_utc}")
-                elif article.get('published', False):
-                    logger.debug(f"✅ Пост #{article_id} уже опубликован")
+                    logger.info(f"⏳ Пост #{article_id} ещё не готов: {teaser_time} > {now_utc}")
+                elif published:
+                    logger.info(f"✅ Пост #{article_id} уже опубликован")
+            else:
+                logger.warning(f"⚠️ У статьи #{article_id} нет teaser_time!")
         
         logger.info(f"📊 get_pending_posts: найдено {len(pending)} постов")
         return pending
-    
+        
     async def update_post_status(self, post_id: int, status: str, fail_reason: str = None, retry_count: int = None):
         """Обновление статуса поста (для совместимости)"""
         # В тестовой БД просто логируем
