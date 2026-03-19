@@ -1193,31 +1193,82 @@ async def on_shutdown():  # ← ЭТА ФУНКЦИЯ ДОЛЖНА БЫТЬ ДО
     logger.info("👋 Bot stopped")
 
 # ============================================
-# ПРОСТОЙ ПЛАНИРОВЩИК БЕЗ APSCHEDULER (С КНОПКАМИ В КАНАЛЕ)
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ТИЗЕРОВ
 # ============================================
 
+def detect_article_type(text: str) -> str:
+    """Определяет тип статьи по ключевым словам"""
+    text_lower = text.lower()
+    if any(word in text_lower for word in ['инструкция', 'как', 'шаги', 'порядок', 'пошагово']):
+        return "instruction"
+    elif any(word in text_lower for word in ['кейс', 'пример', 'ситуация', 'дело', 'случай']):
+        return "case"
+    elif any(word in text_lower for word in ['новость', 'изменения', 'теперь', 'начало']):
+        return "news"
+    else:
+        return "news"  # По умолчанию
+
+def format_teaser_by_type(full_text: str, article_type: str = "news") -> str:
+    """
+    Форматирует тизер в зависимости от типа статьи
+    article_type: news, instruction, case
+    """
+    lines = full_text.strip().split('\n')
+    title = lines[0].strip() if lines else "Статья"
+    
+    # Собираем остальной текст
+    body = ' '.join([line.strip() for line in lines[1:] if line.strip()])
+    
+    # Обрезаем до 400 символов для тизера
+    if len(body) > 400:
+        last_space = body[:400].rfind(' ')
+        body = body[:last_space] + "..." if last_space > 0 else body[:400] + "..."
+    
+    # Шаблоны для разных типов статей
+    templates = {
+        "news": (
+            f"⚜️ **{title}**\n\n"
+            f"🔹 **Главное:** {body}\n\n"
+            f"⚠️ Нажмите кнопку ниже, чтобы прочитать полностью в боте 👇"
+        ),
+        "instruction": (
+            f"📋 **{title}**\n\n"
+            f"🔹 **Пошаговая инструкция:**\n{body}\n\n"
+            f"✅ Полная версия с деталями — в боте 👇"
+        ),
+        "case": (
+            f"⚖️ **{title}**\n\n"
+            f"🔹 **Суть дела:** {body}\n\n"
+            f"📌 Результат и юридические детали — в боте 👇"
+        )
+    }
+    
+    return templates.get(article_type, templates["news"])
+
 def get_channel_post_keyboard(article_id: int):
-    """Клавиатура для поста в канале"""
+    """Клавиатура для поста в канале с красной кнопкой"""
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
-        text="🔗 ЧИТАТЬ ПОЛНОСТЬЮ", 
+        text="🔴 ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ", 
         url=f"https://t.me/uriskonsult_bot?start=article_{article_id}"
     ))
     return builder.as_markup()
 
+# ============================================
+# ПРОСТОЙ ПЛАНИРОВЩИК С ФОТО И УМНЫМИ ТИЗЕРАМИ
+# ============================================
+
 async def run_scheduler():
-    """Простой фоновый планировщик с кнопками в канале"""
+    """Простой фоновый планировщик с фото и умными тизерами"""
     logger.info("🚀 Простой планировщик запущен")
     
     while True:
         try:
-            # Проверяем посты каждые 30 секунд
             await asyncio.sleep(30)
             
             current_time = datetime.now()
             logger.info(f"⏰ Проверка постов в {current_time.strftime('%H:%M:%S')}")
             
-            # Проверяем, есть ли метод get_pending_posts
             if not hasattr(db, 'get_pending_posts'):
                 logger.error("❌ Нет метода get_pending_posts в database.py")
                 continue
@@ -1235,31 +1286,37 @@ async def run_scheduler():
                     try:
                         channel = config['CHANNEL_ID']
                         
-                        # Берём первую строку как заголовок
-                        title = post['content'].split(chr(10))[0]
-                        # Берём следующие 200 символов как анонс
-                        body = post['content'][len(title):300] + "..."
+                        # Определяем тип статьи и форматируем тизер
+                        article_type = detect_article_type(post['content'])
+                        post_text = format_teaser_by_type(post['content'], article_type)
                         
-                        post_text = (
-                            f"🔥 **{title}**\n\n"
-                            f"{body}\n\n"
-                            f"👉 Нажмите кнопку ниже, чтобы прочитать полностью"
-                        )
+                        # Путь к фото
+                        photo_path = os.path.join("images", "max_full.jpg")
                         
-                        # Отправляем в канал с кнопкой
-                        await bot.send_message(
-                            chat_id=channel,
-                            text=post_text,
-                            parse_mode='HTML',
-                            reply_markup=get_channel_post_keyboard(post['id'])
-                        )
-                        logger.info(f"✅ Пост {post['id']} опубликован в канале с кнопкой")
+                        # Отправляем в канал с фото и кнопкой
+                        if os.path.exists(photo_path):
+                            photo = FSInputFile(photo_path)
+                            await bot.send_photo(
+                                chat_id=channel,
+                                photo=photo,
+                                caption=post_text,
+                                parse_mode='HTML',
+                                reply_markup=get_channel_post_keyboard(post['id'])
+                            )
+                            logger.info(f"✅ Пост {post['id']} опубликован в канале с фото и кнопкой")
+                        else:
+                            # Если фото нет, отправляем только текст
+                            await bot.send_message(
+                                chat_id=channel,
+                                text=post_text,
+                                parse_mode='HTML',
+                                reply_markup=get_channel_post_keyboard(post['id'])
+                            )
+                            logger.warning(f"⚠️ Пост {post['id']} опубликован без фото (файл не найден)")
                         
                         # Обновляем статус
                         if hasattr(db, 'update_post_status'):
                             await db.update_post_status(post['id'], 'published')
-                        else:
-                            logger.info(f"✅ Пост {post['id']} обработан")
                             
                     except Exception as e:
                         logger.error(f"❌ Ошибка публикации поста {post['id']}: {e}")
@@ -1277,60 +1334,3 @@ async def run_scheduler():
 # ============================================
 # ГЛАВНАЯ ФУНКЦИЯ ЗАПУСКА
 # ============================================
-
-async def main():
-    """Основная функция запуска бота с улучшенной обработкой ошибок"""
-    
-    # Регистрация обработчиков жизненного цикла
-    dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown)
-    
-    # Проверяем, что планировщик запускается только один раз
-    # Проверяем, есть ли уже запущенная задача планировщика
-    scheduler_task = None
-    for task in asyncio.all_tasks():
-        if task.get_name() == "scheduler_task":
-            scheduler_task = task
-            logger.info("⚠️ Задача планировщика уже существует, перезапуск не требуется")
-            break
-    
-    if not scheduler_task:
-        # Запускаем простой планировщик в фоне с уникальным именем
-        scheduler_task = asyncio.create_task(run_scheduler(), name="scheduler_task")
-        logger.info("✅ Задача планировщика создана и запущена")
-    
-    # Логируем успешный запуск
-    logger.info("🚀 Бот готов к работе. Начинаем polling...")
-    logger.info(f"👤 Администратор: {config['ADMIN_ID']}")
-    logger.info(f"📢 Канал: {config['CHANNEL_ID']}")
-    
-    # Запускаем бота с обработкой возможных ошибок
-    try:
-        await dp.start_polling(bot)
-    except Exception as e:
-        logger.critical(f"❌ Критическая ошибка при запуске polling: {e}")
-        raise
-    finally:
-        logger.info("🛑 Polling завершён")
-
-if __name__ == "__main__":
-    try:
-        # Проверяем, не запущен ли уже экземпляр бота
-        logger.info("🔵 Запуск бота...")
-        
-        # Запускаем основную функцию
-        asyncio.run(main())
-        
-    except KeyboardInterrupt:
-        logger.info("🟡 Бот остановлен пользователем (Ctrl+C)")
-    except RuntimeError as e:
-        if "Event loop is closed" in str(e):
-            logger.warning("⚠️ Цикл событий уже закрыт, пропускаем")
-        else:
-            logger.exception(f"🔴 Ошибка выполнения: {e}")
-    except Exception as e:
-        logger.exception(f"🔴 Непредвиденная фатальная ошибка: {e}")
-        # Здесь можно добавить код для уведомления администратора
-        # Например, отправить сообщение через другого бота или email
-    finally:
-        logger.info("⚫ Бот полностью остановлен")
