@@ -514,25 +514,8 @@ async def send_welcome_post(message: Message, source: str = "send_welcome_post")
     logger.info(f"✅ Текст отправлен. ID: {call_id}")
 
 # ============================================
-# DEEP LINKING (С ФОТО И КНОПКАМИ)
+# DEEP LINKING — переход по ссылке с параметром
 # ============================================
-
-def get_article_keyboard(article_id: int):
-    """Клавиатура для полной статьи"""
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(
-        text="📥 Скачать документ", 
-        callback_data=f"download_{article_id}"
-    ))
-    builder.row(InlineKeyboardButton(
-        text="🏠 Главное меню", 
-        callback_data="back_to_main"
-    ))
-    builder.row(InlineKeyboardButton(
-        text="❓ Нужна консультация", 
-        callback_data="menu_consult"
-    ))
-    return builder.as_markup()
 
 @dp.message(CommandStart(deep_link=True))
 async def cmd_start_deep_link(message: Message, command: CommandObject):
@@ -541,55 +524,46 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
     if args and args.startswith('article_'):
         try:
             article_id = int(args.replace('article_', ''))
-            logger.info(f"🔗 Deep link access to article {article_id} by user {message.from_user.id}")
+            logger.info(f"Deep link access to article {article_id} by user {message.from_user.id}")
             
             article = await db.get_article(article_id)
             
             if article:
-                # Приветственное сообщение
+                # 1. Кнопка Главное меню
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main")]
+                ])
+                await message.answer("📌 Навигация:", reply_markup=keyboard)
+                
+                # 2. Разделитель
                 await message.answer(
-                    "👋 **Вы находитесь в чат-боте юриста Эдуарда Секриера**\n\n"
-                    "Здесь вы можете получить полный разбор темы, скачать документы или задать вопрос."
+                    "Здесь можно обсуждать, уточнять, задавать вопросы. Сохраните этот пост, он вам ещё пригодится.",
+                    parse_mode="HTML"
                 )
                 
-                # Проверяем, есть ли фото для статьи
-                photo_path = article.get('teaser_photo')
-                if photo_path and os.path.exists(photo_path):
-                    try:
-                        photo = FSInputFile(photo_path)
-                        await message.answer_photo(
-                            photo, 
-                            caption="📎 Иллюстрация к статье"
-                        )
-                    except Exception as e:
-                        logger.error(f"❌ Ошибка отправки фото: {e}")
-                
-                # Получаем заголовок (первая строка)
-                title = article['full_text'].split(chr(10))[0]
-                
-                # Отправляем полный текст статьи с клавиатурой
+                # 3. Полный текст статьи
+                article_title = article['full_text'].split('\n')[0][:50] + "..."
                 await message.answer(
-                    f"📄 **{title}**\n\n"
-                    f"{article['full_text']}",
-                    reply_markup=get_article_keyboard(article_id),
-                    parse_mode='HTML'
+                    f"📄 <b>{article_title}</b>\n\n{article['full_text']}",
+                    parse_mode="HTML"
                 )
+                
             else:
                 await message.answer("❌ Статья не найдена или была удалена.")
                 
         except ValueError:
             await message.answer("❌ Неверная ссылка на статью.")
         except Exception as e:
-            logger.error(f"❌ Error in deep link processing: {e}")
+            logger.error(f"Error in deep link processing: {e}")
             await message.answer("❌ Произошла ошибка при загрузке статьи.")
-            
+    
     elif args == 'consult':
         await cmd_consult(message)
     else:
         await cmd_start(message)
 
 # ============================================
-# КОМАНДА /start
+# КОМАНДА /start (обычный)
 # ============================================
 
 @dp.message(Command("start"))
