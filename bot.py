@@ -431,7 +431,7 @@ def get_shop_keyboard():
     builder.button(text="◀️ Назад", callback_data="back_to_main")
     builder.adjust(1)
     return builder.as_markup()
-
+    
 def get_free_categories_keyboard():
     builder = InlineKeyboardBuilder()
     for cat_key, cat_data in FREE_DOCS.items():
