@@ -1156,7 +1156,14 @@ async def menu_help(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "back_to_main")
 async def back_to_main(callback: CallbackQuery):
-    await cmd_start(callback.message)
+    text = (
+        "📌 Чтобы продолжить, выберите нужный раздел в меню "
+        "и получите готовые инструкции, памятки или шаблоны документов👇"
+    )
+    await callback.message.answer(
+        text,
+        reply_markup=get_main_keyboard()
+    )
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data == "other_articles")
