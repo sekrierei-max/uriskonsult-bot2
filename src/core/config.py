@@ -75,6 +75,6 @@ config = {
     "LOGS_DIR": LOGS_DIR,
     # Добавляем длину тизера (можно вынести в переменные окружения позже)
     "TEASER_LENGTH": 200,
-}
+    "PROXY_URL": os.getenv("PROXY_URL", "").strip(),}
 
 print(f"✅ config.py загружен, CHANNEL_ID={config['CHANNEL_ID']} ({type(config['CHANNEL_ID']).__name__})")
