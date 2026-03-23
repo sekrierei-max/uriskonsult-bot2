@@ -114,7 +114,31 @@ print(f"📂 Файлы в директории: {os.listdir('.')}")
 # ============================================
 logger = setup_logger('bot')
 print(f"🤖 Инициализация бота с токеном: {config['BOT_TOKEN'][:10]}...")
-bot = Bot(token=config['BOT_TOKEN'])
+
+# ============================================
+# НАСТРОЙКА БОТА С ПРОКСИ
+# ============================================
+from aiohttp import ClientSession
+
+if config.get('PROXY_URL'):
+    try:
+        from aiohttp_socks import ProxyConnector
+        proxy_url = config['PROXY_URL']
+        connector = ProxyConnector.from_url(proxy_url)
+        session = ClientSession(connector=connector)
+        bot = Bot(token=config['BOT_TOKEN'], session=session)
+        logger.info(f"🌐 Прокси подключен: {proxy_url}")
+        print(f"🌐 Прокси подключен: {proxy_url}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка подключения прокси: {e}")
+        print(f"❌ Ошибка подключения прокси: {e}")
+        bot = Bot(token=config['BOT_TOKEN'])
+        logger.info("🌐 Прокси не используется (ошибка подключения)")
+else:
+    bot = Bot(token=config['BOT_TOKEN'])
+    logger.info("🌐 Прокси не используется")
+    print("🌐 Прокси не используется")
+
 dp = Dispatcher(storage=MemoryStorage())
 
 # ============================================
