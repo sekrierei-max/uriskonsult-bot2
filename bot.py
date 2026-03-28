@@ -578,20 +578,21 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
                 else:
                     cleaned_text = f"{new_title}\n\n{cleaned_text}"
                 
-                # 1. Сначала отправляем кнопку (она будет сверху)
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main")]
-                ])
-                await message.answer(
-                    "🏠 **Главное меню**",
-                    reply_markup=keyboard,
-                    parse_mode="HTML"
-                )
-                
-                # 2. Затем отправляем текст статьи (будет под кнопкой)
+                # Отправляем ТОЛЬКО текст статьи (одним сообщением)
                 await message.answer(
                     cleaned_text,
                     parse_mode="HTML"
+                )
+                
+                # Затем отправляем сообщение с кнопкой (оно будет НИЖЕ текста)
+                # Но в Telegram оно будет последним, и при переходе по ссылке
+                # пользователь увидит сначала это сообщение (так как оно последнее)
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🏠 ВЕРНУТЬСЯ В ГЛАВНОЕ МЕНЮ", callback_data="back_to_main")]
+                ])
+                await message.answer(
+                    "👇 Нажмите кнопку, чтобы вернуться в главное меню:",
+                    reply_markup=keyboard
                 )
                 
             else:
