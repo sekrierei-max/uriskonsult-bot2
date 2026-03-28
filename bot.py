@@ -578,22 +578,20 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
                 else:
                     cleaned_text = f"{new_title}\n\n{cleaned_text}"
                 
-                # Отправляем ТОЛЬКО кнопку (без дублирующего текста)
+                # 1. Сначала отправляем кнопку (она будет сверху)
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main")]
                 ])
-                
-                # Отправляем текст статьи
                 await message.answer(
-                    cleaned_text,
+                    "🏠 **Главное меню**",
+                    reply_markup=keyboard,
                     parse_mode="HTML"
                 )
                 
-                # Отправляем кнопку отдельным сообщением
-                # (она будет внизу, сразу после текста)
+                # 2. Затем отправляем текст статьи (будет под кнопкой)
                 await message.answer(
-                    "🏠 Нажмите для возврата в главное меню:",
-                    reply_markup=keyboard
+                    cleaned_text,
+                    parse_mode="HTML"
                 )
                 
             else:
