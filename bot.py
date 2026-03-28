@@ -1268,14 +1268,17 @@ def get_channel_post_keyboard(article_id: int):
 # ПЛАНИРОВЩИК С ПУБЛИКАЦИЕЙ ПОСТОВ
 # ============================================
 
-logger.info("🚀 Планировщик запущен")
-
-while True:  # ← этот while не должен иметь отступов
-    try:
-        await asyncio.sleep(30)
-        
-        current_time = datetime.now()
-        logger.info(f"⏰ Проверка постов в {current_time.strftime('%H:%M:%S')}")
+async def run_scheduler():
+    """Функция планировщика, запускаемая в фоне"""
+    logger.info("🚀 Планировщик запущен")
+    print("🚀 Планировщик запущен")
+    
+    while True:
+        try:
+            await asyncio.sleep(30)
+            
+            current_time = datetime.now()
+            logger.info(f"⏰ Проверка постов в {current_time.strftime('%H:%M:%S')}")
             
             # Получаем посты для публикации
             posts = await db.get_pending_posts()
@@ -1305,7 +1308,7 @@ while True:  # ← этот while не должен иметь отступов
                         if photo_path:
                             # Если фото привязано к статье — используем его
                             try:
-                                # Если photo_path — это file_id от Telegram
+                                # Если photo_path — это file_id от Telegram (не путь к файлу)
                                 if not os.path.exists(photo_path):
                                     await bot.send_photo(
                                         chat_id=channel,
