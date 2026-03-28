@@ -851,7 +851,21 @@ async def process_article_text(message: Message, state: FSMContext):
     if not message.text:
         await message.answer("❌ Пожалуйста, отправьте текст статьи.")
         return
-    await state.update_data(article_text=message.text)
+    
+    # Очищаем текст от лишних метаданных
+    raw_text = message.text
+    lines = raw_text.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        # Пропускаем строки, похожие на "[28.03.2026 20:53] Эдуард Секриер:"
+        # Условие: строка начинается с [, содержит ] и :
+        if not (line.strip().startswith('[') and ']' in line and ':' in line):
+            cleaned_lines.append(line)
+    
+    cleaned_text = '\n'.join(cleaned_lines).strip()
+    
+    await state.update_data(article_text=cleaned_text)
     
     await message.answer(
         "📸 Отправьте фото для тизера\n\n"
