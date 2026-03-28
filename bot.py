@@ -557,41 +557,43 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
                 # Получаем текст статьи
                 full_text = article['full_text']
                 
-                # Очищаем текст от метаданных (строки вида "[дата] Имя:")
+                # Очищаем текст от метаданных
                 lines = full_text.split('\n')
                 cleaned_lines = []
                 for line in lines:
-                    # Пропускаем строки, начинающиеся с [ и содержащие ] и :
                     if not (line.strip().startswith('[') and ']' in line and ':' in line):
                         cleaned_lines.append(line)
                 
                 cleaned_text = '\n'.join(cleaned_lines).strip()
                 
-                # Находим первый заголовок (первую непустую строку)
+                # Находим первый заголовок
                 first_line = cleaned_text.split('\n')[0] if cleaned_text else ""
                 
                 # Новый заголовок
                 new_title = "📌 **ПОЛНЫЙ ПОСТ СО ССЫЛКАМИ НА НОРМАТИВНЫЕ АКТЫ**"
                 
-                # Заменяем первый заголовок на новый
+                # Заменяем старый заголовок на новый
                 if first_line and cleaned_text.startswith(first_line):
-                    # Убираем возможные символы форматирования из старого заголовка
-                    old_title_clean = first_line.strip('*#').strip()
-                    # Заменяем
                     cleaned_text = cleaned_text.replace(first_line, new_title, 1)
                 else:
                     cleaned_text = f"{new_title}\n\n{cleaned_text}"
                 
-                # 1. Кнопка Главное меню (без лишнего слова "Навигация:")
+                # Отправляем ТОЛЬКО кнопку (без дублирующего текста)
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main")]
                 ])
-                await message.answer("🏠 Главное меню", reply_markup=keyboard)
                 
-                # 2. Полный текст статьи (уже с новым заголовком)
+                # Отправляем текст статьи
                 await message.answer(
                     cleaned_text,
                     parse_mode="HTML"
+                )
+                
+                # Отправляем кнопку отдельным сообщением
+                # (она будет внизу, сразу после текста)
+                await message.answer(
+                    "🏠 Нажмите для возврата в главное меню:",
+                    reply_markup=keyboard
                 )
                 
             else:
