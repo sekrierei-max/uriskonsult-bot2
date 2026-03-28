@@ -1269,13 +1269,13 @@ def get_channel_post_keyboard(article_id: int):
 # ============================================
 
 logger.info("🚀 Планировщик запущен")
-    
-    while True:
-        try:
-            await asyncio.sleep(30)
-            
-            current_time = datetime.now()
-            logger.info(f"⏰ Проверка постов в {current_time.strftime('%H:%M:%S')}")
+
+while True:  # ← этот while не должен иметь отступов
+    try:
+        await asyncio.sleep(30)
+        
+        current_time = datetime.now()
+        logger.info(f"⏰ Проверка постов в {current_time.strftime('%H:%M:%S')}")
             
             # Получаем посты для публикации
             posts = await db.get_pending_posts()
