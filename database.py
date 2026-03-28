@@ -25,7 +25,7 @@ class Database:
             'teaser_time': publish_time,  # Время в МСК от пользователя
             'created_at': datetime.now(),
             'published': False,
-            'teaser_photo': None  # Добавлено поле для фото
+            'teaser_photo': None  # Поле для хранения file_id фото
         }
         self.next_id += 1
         logger.info(f"📝 Добавлена тестовая статья #{article_id} на {publish_time} МСК")
@@ -73,7 +73,7 @@ class Database:
     async def get_pending_posts(self) -> List[Dict]:
         """
         Возвращает статьи, которые нужно опубликовать сейчас.
-        ИСПРАВЛЕНО: правильное сравнение времени с учётом часовых поясов
+        Возвращает список с полем teaser_photo для использования в планировщике
         """
         now_utc = datetime.now()  # Серверное время UTC
         pending = []
@@ -106,7 +106,7 @@ class Database:
                         'content': article['full_text'],
                         'scheduled_time': teaser_time_msk,  # Сохраняем МСК для пользователя
                         'status': 'pending',
-                        'teaser_photo': article.get('teaser_photo')  # Добавлено поле для фото
+                        'teaser_photo': article.get('teaser_photo')  # Поле для фото
                     }
                     pending.append(pending_post)
                     article['published'] = True  # Помечаем как опубликованную
@@ -122,7 +122,7 @@ class Database:
         return pending
     
     async def update_article_photo(self, article_id: int, photo_path: str):
-        """Обновляет путь к фото статьи"""
+        """Обновляет путь к фото статьи (сохраняет file_id)"""
         if article_id in self.articles:
             self.articles[article_id]['teaser_photo'] = photo_path
             logger.info(f"📸 Путь к фото для статьи #{article_id} сохранён: {photo_path}")
