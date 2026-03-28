@@ -1462,7 +1462,7 @@ async def on_startup_webhook():
     print(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
     print(f"   Последняя ошибка: {webhook_info.last_error_message}")
     
-    # Запускаем планировщик в фоне
+    # Запускаем планировщик в фоне (ТОЛЬКО ЗДЕСЬ)
     asyncio.create_task(run_scheduler())
     asyncio.create_task(reset_limits_daily())
     
@@ -1501,11 +1501,6 @@ SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 # Привязываем функции запуска и остановки
 app.on_startup.append(lambda _: on_startup_webhook())
 app.on_shutdown.append(lambda _: on_shutdown_webhook())
-
-# ============================================
-# КОМАНДА ДЛЯ ПРОВЕРКИ ФОТО (УЖЕ ЕСТЬ)
-# ============================================
-# (оставьте как есть)
 
 # ============================================
 # ТОЧКА ВХОДА
