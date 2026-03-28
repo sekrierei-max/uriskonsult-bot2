@@ -833,8 +833,9 @@ async def admin_exit(callback: CallbackQuery, state: FSMContext = None):
     )
 
 # ============================================
-# АДМИН-КОМАНДЫ (ввод)
+# КОМАНДЫ ДЛЯ РАБОТЫ СО СТАТЬЯМИ
 # ============================================
+
 @dp.message(Command("add_article"))
 @admin_only
 async def cmd_add_article(message: Message, state: FSMContext, **kwargs):
@@ -868,6 +869,7 @@ async def process_article_photo(message: Message, state: FSMContext):
         await state.set_state(ArticleStates.waiting_for_time)
         return
     
+    # Сохраняем сообщение с фото для последующей обработки
     await state.update_data(photo_message=message)
     
     example = datetime.now() + timedelta(hours=1)
@@ -897,17 +899,27 @@ async def process_article_time(message: Message, state: FSMContext):
         data = await state.get_data()
         article_text = data['article_text']
         
+        # Сохраняем статью в БД
         article_id = await db.add_article(article_text, msk_time)
         
         photo_path = None
+        photo_file_id = None
+        
+        # Обрабатываем фото, если оно было отправлено
         if 'photo_message' in data:
             try:
-                photo_path = await compress_and_save_photo(data['photo_message'], article_id)
-                await db.update_article_photo(article_id, photo_path)
-                logger.info(f"✅ Фото для статьи #{article_id} сохранено: {photo_path}")
+                photo_msg = data['photo_message']
+                # Получаем file_id самого большого фото
+                photo_file_id = photo_msg.photo[-1].file_id
+                
+                # Сохраняем file_id в БД (поле photo_path)
+                await db.update_article_photo(article_id, photo_file_id)
+                photo_path = photo_file_id
+                logger.info(f"✅ Фото для статьи #{article_id} сохранено (file_id)")
             except Exception as e:
                 logger.error(f"❌ Ошибка сохранения фото: {e}")
         
+        # Генерируем deep link
         deep_link = f"@uriskonsult_bot?start=article_{article_id}"
         
         response = f"✅ **Статья #{article_id} добавлена!**\n\n"
@@ -915,7 +927,7 @@ async def process_article_time(message: Message, state: FSMContext):
         response += f"📅 Публикация тизера запланирована на {msk_time.strftime('%d.%m.%Y %H:%M')} МСК.\n"
         
         if photo_path:
-            response += f"\n📸 Фото загружено и сжато"
+            response += f"\n📸 Фото сохранено (будет использовано при публикации)"
         else:
             response += f"\n⚠️ Статья сохранена без фото"
         
