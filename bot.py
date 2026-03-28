@@ -1280,7 +1280,6 @@ async def run_scheduler():
             current_time = datetime.now()
             logger.info(f"⏰ Проверка постов в {current_time.strftime('%H:%M:%S')}")
             
-            # Получаем посты для публикации
             posts = await db.get_pending_posts()
             
             if posts:
@@ -1290,7 +1289,6 @@ async def run_scheduler():
                     try:
                         channel = config['CHANNEL_ID']
                         
-                        # Форматируем пост
                         full_text = post['content']
                         lines = full_text.split('\n')
                         title = lines[0].strip() if lines else "Статья"
@@ -1302,24 +1300,20 @@ async def run_scheduler():
                             f"⚠️ Нажмите кнопку ниже, чтобы прочитать полностью в боте 👇"
                         )
                         
-                        # Получаем путь к фото из БД (поле teaser_photo)
                         photo_path = post.get('teaser_photo')
                         
                         if photo_path:
-                            # Если фото привязано к статье — используем его
                             try:
-                                # Если photo_path — это file_id от Telegram (не путь к файлу)
                                 if not os.path.exists(photo_path):
                                     await bot.send_photo(
                                         chat_id=channel,
-                                        photo=photo_path,  # file_id
+                                        photo=photo_path,
                                         caption=post_text,
                                         parse_mode='HTML',
                                         reply_markup=get_channel_post_keyboard(post['id'])
                                     )
                                     logger.info(f"✅ Пост {post['id']} опубликован с фото (file_id)")
                                 else:
-                                    # Если это путь к файлу
                                     photo = FSInputFile(photo_path)
                                     await bot.send_photo(
                                         chat_id=channel,
@@ -1331,7 +1325,6 @@ async def run_scheduler():
                                     logger.info(f"✅ Пост {post['id']} опубликован с фото (файл: {photo_path})")
                             except Exception as e:
                                 logger.error(f"❌ Ошибка при отправке фото: {e}")
-                                # Если фото не отправилось, публикуем без фото
                                 await bot.send_message(
                                     chat_id=channel,
                                     text=post_text,
@@ -1340,7 +1333,6 @@ async def run_scheduler():
                                 )
                                 logger.warning(f"⚠️ Пост {post['id']} опубликован без фото (ошибка фото)")
                         else:
-                            # Если фото нет в БД — используем дефолтное
                             default_photo = os.path.join("images", "max_full.jpg")
                             if os.path.exists(default_photo):
                                 photo = FSInputFile(default_photo)
@@ -1353,7 +1345,6 @@ async def run_scheduler():
                                 )
                                 logger.info(f"✅ Пост {post['id']} опубликован с дефолтным фото")
                             else:
-                                # Если дефолтного фото нет — только текст
                                 await bot.send_message(
                                     chat_id=channel,
                                     text=post_text,
@@ -1362,7 +1353,6 @@ async def run_scheduler():
                                 )
                                 logger.warning(f"⚠️ Пост {post['id']} опубликован без фото")
                             
-                        # Обновляем статус
                         await db.update_post_status(post['id'], 'published')
                             
                     except Exception as e:
@@ -1375,35 +1365,25 @@ async def run_scheduler():
             await asyncio.sleep(10)
 
 # ============================================
-# СЛЕДУЮЩИЙ БЛОК (WEBHOOK НАСТРОЙКИ ИЛИ ДРУГОЙ)
+# СЛЕДУЮЩИЙ БЛОК (WEBHOOK НАСТРОЙКИ)
 # ============================================
 
 import json
 from aiohttp import web
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 WEBHOOK_PATH = "/webhook"
 PORT = int(os.getenv("PORT", 80))
 
-# ============================================
-# ДИАГНОСТИЧЕСКИЙ MIDDLEWARE
-# ============================================
 @web.middleware
 async def log_requests(request, handler):
-    """Логирует все входящие HTTP-запросы"""
     print(f"\n🔴🔴🔴 ПОЛУЧЕН HTTP-ЗАПРОС: {request.method} {request.path}")
     print(f"🔴 Headers: {dict(request.headers)}")
-    
-    # Пробуем прочитать тело запроса
     try:
         body = await request.text()
         if body:
-            # Безопасно логируем (обрезаем до 500 символов)
             body_preview = body[:500] + "..." if len(body) > 500 else body
             print(f"🔴 Body (первые 500 символов): {body_preview}")
-            
-            # Если это JSON, попробуем распарсить для красоты
             if 'application/json' in request.headers.get('Content-Type', ''):
                 try:
                     json_body = json.loads(body)
@@ -1412,17 +1392,11 @@ async def log_requests(request, handler):
                     pass
     except Exception as e:
         print(f"🔴 Не удалось прочитать тело запроса: {e}")
-    
-    # Продолжаем обработку
     response = await handler(request)
     print(f"🔴 Ответ: {response.status}")
     return response
 
-# ============================================
-# ОБРАБОТЧИКИ
-# ============================================
 async def handle_root(request):
-    """Корневой маршрут для проверки доступности"""
     return web.Response(
         text="✅ Бот работает! Webhook endpoint: /webhook\n"
              f"📊 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -1430,50 +1404,39 @@ async def handle_root(request):
     )
 
 async def handle_health(request):
-    """Health check для Amvera"""
     return web.Response(text="OK", status=200)
 
-# ============================================
-# WEBHOOK ФУНКЦИИ
-# ============================================
 async def on_startup_webhook():
-    """Действия при старте вебхука"""
     print("\n🚀🚀🚀 ЗАПУСК WEBHOOK НАСТРОЙКИ")
     
     if not WEBHOOK_URL:
-        logger.error("❌ WEBHOOK_URL не задан! Бот не сможет работать.")
+        logger.error("❌ WEBHOOK_URL не задан!")
         print("❌ WEBHOOK_URL не задан!")
         return
     
     print(f"📌 Устанавливаем вебхук на: {WEBHOOK_URL}{WEBHOOK_PATH}")
     
-    # Принудительно удаляем старый вебхук и все ожидающие обновления
     await bot.delete_webhook(drop_pending_updates=True)
-    print("✅ Старый вебхук удалён, ожидающие обновления сброшены")
+    print("✅ Старый вебхук удалён")
     
-    # Устанавливаем новый вебхук
     await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
     print(f"✅ Вебхук установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
     
-    # Проверяем, что вебхук установлен
     webhook_info = await bot.get_webhook_info()
     print(f"📊 Информация о вебхуке:")
     print(f"   URL: {webhook_info.url}")
     print(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
     print(f"   Последняя ошибка: {webhook_info.last_error_message}")
     
-    # Запускаем планировщик в фоне (ТОЛЬКО ЗДЕСЬ)
     asyncio.create_task(run_scheduler())
     asyncio.create_task(reset_limits_daily())
     
-    # Подключаемся к БД
     await db.connect()
     
     logger.info("✅ Бот готов к работе через webhook")
     print("✅ Бот готов к работе через webhook")
 
 async def on_shutdown_webhook():
-    """Действия при остановке"""
     print("\n🛑🛑🛑 ОСТАНОВКА WEBHOOK")
     await bot.delete_webhook()
     print("✅ Webhook удален")
@@ -1485,39 +1448,28 @@ async def on_shutdown_webhook():
     logger.info("👋 Бот остановлен")
     print("👋 Бот остановлен")
 
-# ============================================
-# СОЗДАЁМ ПРИЛОЖЕНИЕ С ДИАГНОСТИКОЙ
-# ============================================
 app = web.Application(middlewares=[log_requests])
-
-# Добавляем тестовые маршруты
 app.router.add_get('/', handle_root)
 app.router.add_get('/health', handle_health)
 
-# Регистрируем обработчик вебхуков (ВАЖНО: путь должен совпадать с WEBHOOK_PATH)
 print(f"📌 Регистрируем обработчик вебхуков на путь: {WEBHOOK_PATH}")
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 
-# Привязываем функции запуска и остановки
 app.on_startup.append(lambda _: on_startup_webhook())
 app.on_shutdown.append(lambda _: on_shutdown_webhook())
 
-# ============================================
-# ТОЧКА ВХОДА
-# ============================================
 if __name__ == "__main__":
     if not WEBHOOK_URL:
-        logger.critical("❌ WEBHOOK_URL не задан! Добавьте переменную в Amvera")
-        print("❌ WEBHOOK_URL не задан! Добавьте переменную в Amvera")
+        logger.critical("❌ WEBHOOK_URL не задан!")
+        print("❌ WEBHOOK_URL не задан!")
         sys.exit(1)
     
     print(f"\n🚀 ЗАПУСК ВЕБ-СЕРВЕРА")
     print(f"📌 Порт: {PORT}")
-    print(f"📌 Хост: 0.0.0.0 (слушаем все интерфейсы)")
+    print(f"📌 Хост: 0.0.0.0")
     print(f"📌 Домен: {WEBHOOK_URL}")
     print(f"📌 Путь вебхука: {WEBHOOK_PATH}")
     print(f"📌 Полный URL вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}")
     
-    logger.info(f"🚀 Запуск веб-сервера на порту {PORT} (хост: 0.0.0.0)")
-    # ВАЖНО: host="0.0.0.0" - слушаем все интерфейсы
+    logger.info(f"🚀 Запуск веб-сервера на порту {PORT}")
     web.run_app(app, host="0.0.0.0", port=PORT)
