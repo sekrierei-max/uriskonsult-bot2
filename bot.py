@@ -1183,6 +1183,16 @@ async def cmd_old_posts(message: Message, **kwargs):
         await message.answer(f"❌ Ошибка: {e}")
 
 # ============================================
+# УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ДИАГНОСТИКИ (ВРЕМЕННО)
+# ============================================
+
+@dp.callback_query()
+async def catch_all_callbacks(callback: CallbackQuery):
+    print(f"🔴🔴🔴 ПОЛУЧЕН CALLBACK: {callback.data}")
+    logger.info(f"🔴🔴🔴 ПОЛУЧЕН CALLBACK: {callback.data}")
+    await callback.answer(f"Получен callback: {callback.data}")
+
+# ============================================
 # ОБРАБОТЧИКИ КНОПОК
 # ============================================
 @dp.callback_query(lambda c: c.data == "menu_cases")
@@ -1231,11 +1241,6 @@ async def other_articles_handler(callback: CallbackQuery):
 async def consultation_handler(callback: CallbackQuery):
     await cmd_consult(callback.message)
     await callback.answer()
-
-async def check_old_posts_periodically():
-    await asyncio.sleep(60)
-    while True:
-        await asyncio.sleep(24 * 60 * 60)
 
 # ============================================
 # ОБРАБОТЧИК ОШИБОК
