@@ -1393,7 +1393,10 @@ async def on_startup_webhook():
     await bot.delete_webhook(drop_pending_updates=True)
     print("✅ Старый вебхук удалён")
     
-    await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
+    await bot.set_webhook(
+    url=f"{WEBHOOK_URL}{WEBHOOK_PATH}",
+    allowed_updates=["message", "callback_query"]
+)
     print(f"✅ Вебхук установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
     
     webhook_info = await bot.get_webhook_info()
