@@ -756,6 +756,7 @@ async def cmd_cases(message: Message):
 # ============================================
 # КОМАНДА /consult
 # ============================================
+
 @dp.message(Command("consult"))
 async def cmd_consult(message: Message):
     text = "👨‍⚖️ Запись на консультацию\n\nВыберите способ обращения:"
