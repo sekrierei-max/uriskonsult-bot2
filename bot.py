@@ -554,46 +554,25 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
             article = await db.get_article(article_id)
             
             if article:
-                # Получаем текст статьи
-                full_text = article['full_text']
+                # Получаем данные из БД
+                teaser_title = article.get('teaser_title', 'Статья')
+                full_text = article.get('full_text', '')
                 
-                # Очищаем текст от метаданных
-                lines = full_text.split('\n')
-                cleaned_lines = []
-                for line in lines:
-                    if not (line.strip().startswith('[') and ']' in line and ':' in line):
-                        cleaned_lines.append(line)
-                
-                cleaned_text = '\n'.join(cleaned_lines).strip()
-                
-                # Находим первый заголовок
-                first_line = cleaned_text.split('\n')[0] if cleaned_text else ""
-                
-                # Новый заголовок
-                new_title = "📌 **ПОЛНЫЙ ПОСТ СО ССЫЛКАМИ НА НОРМАТИВНЫЕ АКТЫ**"
-                
-                # Заменяем старый заголовок на новый
-                if first_line and cleaned_text.startswith(first_line):
-                    cleaned_text = cleaned_text.replace(first_line, new_title, 1)
-                else:
-                    cleaned_text = f"{new_title}\n\n{cleaned_text}"
-                
-                # Отправляем ТОЛЬКО текст статьи (одним сообщением)
-                await message.answer(
-                    cleaned_text,
-                    parse_mode="HTML"
+                # Формируем сообщение для бота
+                bot_text = (
+                    f"📌 **ПОЛНЫЙ ПОСТ СО ССЫЛКАМИ НА НОРМАТИВНЫЕ АКТЫ**\n\n"
+                    f"**На тему:** {teaser_title}\n\n"
+                    f"{full_text}\n\n"
+                    f"---\n"
+                    f"🔙 ВЕРНУТЬСЯ В ГЛАВНОЕ МЕНЮ"
                 )
                 
-                # Затем отправляем сообщение с кнопкой (оно будет НИЖЕ текста)
-                # Но в Telegram оно будет последним, и при переходе по ссылке
-                # пользователь увидит сначала это сообщение (так как оно последнее)
+                # Кнопка возврата
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="🏠 ВЕРНУТЬСЯ В ГЛАВНОЕ МЕНЮ", callback_data="back_to_main")]
                 ])
-                await message.answer(
-                    "👇 Нажмите кнопку, чтобы вернуться в главное меню:",
-                    reply_markup=keyboard
-                )
+                
+                await message.answer(bot_text, parse_mode="HTML", reply_markup=keyboard)
                 
             else:
                 await message.answer("❌ Статья не найдена или была удалена.")
