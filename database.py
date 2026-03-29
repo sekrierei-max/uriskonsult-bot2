@@ -33,13 +33,17 @@ class Database:
             'full_text': full_text,
             'teaser_title': teaser_title,
             'teaser_text': teaser_text,
-            'teaser_time': publish_time,  # Время в МСК от пользователя
-            'teaser_photo': photo_file_id,  # file_id фото
+            'teaser_time': publish_time,
+            'teaser_photo': photo_file_id,
             'created_at': datetime.now(),
             'published': False
         }
         self.next_id += 1
-        logger.info(f"📝 Добавлена статья #{article_id}: {teaser_title} на {publish_time}")
+        # Логируем сохранение фото
+        if photo_file_id:
+            logger.info(f"📸 Фото для статьи #{article_id} сохранено: {photo_file_id[:20]}...")
+        else:
+            logger.info(f"📝 Добавлена статья #{article_id}: {teaser_title} (без фото)")
         return article_id
     
     async def get_article(self, article_id: int) -> Optional[Dict[str, Any]]:
@@ -94,12 +98,6 @@ class Database:
     async def get_pending_posts(self) -> List[Dict]:
         """
         Возвращает статьи, которые нужно опубликовать сейчас.
-        Возвращает список с полями:
-        - id
-        - teaser_title
-        - teaser_text
-        - teaser_photo
-        - full_text
         """
         now_utc = datetime.now()
         pending = []
@@ -108,19 +106,19 @@ class Database:
         logger.info(f"🔍 Текущее время UTC: {now_utc}")
         
         for article_id, article in self.articles.items():
-            logger.info(f"🔍 Проверка статьи #{article_id}")
-            
             teaser_time_msk = article.get('teaser_time')
             published = article.get('published', False)
             
             if teaser_time_msk:
                 teaser_time_utc = teaser_time_msk - timedelta(hours=3)
                 
+                logger.info(f"🔍 Проверка статьи #{article_id}")
                 logger.info(f"   Заголовок: {article.get('teaser_title', 'Без заголовка')}")
                 logger.info(f"   Время статьи (МСК): {teaser_time_msk}")
                 logger.info(f"   Время статьи (UTC): {teaser_time_utc}")
                 logger.info(f"   Текущее время (UTC): {now_utc}")
                 logger.info(f"   Опубликована: {published}")
+                logger.info(f"   teaser_photo: {article.get('teaser_photo') is not None}")
                 
                 if teaser_time_utc <= now_utc and not published:
                     pending_post = {
@@ -134,7 +132,7 @@ class Database:
                     article['published'] = True
                     logger.info(f"📊 ПОСТ #{article_id} ГОТОВ К ПУБЛИКАЦИИ!")
                 elif teaser_time_utc > now_utc:
-                    logger.info(f"⏳ Пост #{article_id} ещё не готов (по UTC)")
+                    logger.info(f"⏳ Пост #{article_id} ещё не готов")
                 elif published:
                     logger.info(f"✅ Пост #{article_id} уже опубликован")
             else:
