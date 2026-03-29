@@ -846,7 +846,7 @@ async def admin_exit(callback: CallbackQuery, state: FSMContext = None):
 @admin_only
 async def cmd_add_article(message: Message, state: FSMContext, **kwargs):
     await message.answer(
-        "📝 Добавление новой статьи\n\n"
+        "📝 **Добавление новой статьи**\n\n"
         "**Шаг 1 из 5:** Отправьте ПОЛНЫЙ текст статьи (для бота):"
     )
     await state.set_state(ArticleStates.full_text)
@@ -873,7 +873,7 @@ async def process_teaser_title(message: Message, state: FSMContext):
     
     await message.answer(
         "📝 **Шаг 3 из 5:** Введите ТИЗЕР (короткий текст для канала, 300-500 символов):\n\n"
-        "Это будет первая часть поста в канале"
+        "Это будет основная часть поста в канале"
     )
     await state.set_state(ArticleStates.teaser_text)
 
@@ -887,22 +887,32 @@ async def process_teaser_text(message: Message, state: FSMContext):
     await message.answer(
         "📸 **Шаг 4 из 5:** Отправьте ФОТО для тизера\n\n"
         "Фото будет прикреплено к посту в канале\n\n"
-        "Если не хотите добавлять фото — отправьте любое слово, например «пропустить»"
+        "Если не хотите добавлять фото — отправьте слово **пропустить**"
     )
     await state.set_state(ArticleStates.photo)
 
 @dp.message(ArticleStates.photo)
 async def process_article_photo(message: Message, state: FSMContext):
+    # Обработка фото
     if message.photo:
-        # Получаем file_id самого большого фото
         photo_file_id = message.photo[-1].file_id
         await state.update_data(photo_file_id=photo_file_id)
-        logger.info(f"📸 Фото получено, file_id: {photo_file_id[:20]}...")
+        await message.answer("✅ Фото сохранено")
     else:
-        # Фото не отправлено
-        await state.update_data(photo_file_id=None)
-        await message.answer("⚠️ Фото не добавлено. Продолжаем без фото.")
+        # Проверяем, хочет ли пользователь пропустить фото
+        if message.text and message.text.lower() in ['пропустить', 'skip', 'нет']:
+            await state.update_data(photo_file_id=None)
+            await message.answer("⚠️ Фото не добавлено. Продолжаем без фото.")
+        else:
+            # Если отправлен непонятный текст — просим фото или команду пропуска
+            await message.answer(
+                "❓ Непонятно. Отправьте ФОТО или напишите **пропустить**\n\n"
+                "Фото: отправьте изображение\n"
+                "Пропустить: напишите слово **пропустить**"
+            )
+            return
     
+    # Переход к шагу 5 (только один раз)
     await state.set_state(ArticleStates.time)
     
     example = datetime.now() + timedelta(hours=1)
@@ -944,20 +954,23 @@ async def process_article_time(message: Message, state: FSMContext):
         
         response = f"✅ **Статья #{article_id} добавлена!**\n\n"
         response += f"📌 Заголовок: {data['teaser_title']}\n"
-        response += f"📅 Публикация тизера: {msk_time.strftime('%d.%m.%Y %H:%M')} МСК.\n"
-        response += f"🔗 Ссылка для бота: {deep_link}\n"
+        response += f"📅 Публикация: {msk_time.strftime('%d.%m.%Y %H:%M')} МСК.\n"
+        response += f"🔗 Ссылка: {deep_link}\n"
         
         if data.get('photo_file_id'):
             response += f"\n📸 Фото сохранено"
         else:
-            response += f"\n⚠️ Статья сохранена без фото"
+            response += f"\n⚠️ Статья без фото"
         
         await message.answer(response)
         await state.clear()
         
     except ValueError:
-        await message.answer("❌ Неверный формат даты! Используйте ДД.ММ.ГГГГ ЧЧ:ММ")
-        return
+        await message.answer("❌ Неверный формат! Используйте ДД.ММ.ГГГГ ЧЧ:ММ")
+
+# ============================================
+# КОМАНДЫ СПИСКА, УДАЛЕНИЯ, РЕДАКТИРОВАНИЯ
+# ============================================
 
 @dp.message(Command("list_articles"))
 @admin_only
