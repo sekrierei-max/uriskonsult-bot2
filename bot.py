@@ -1263,48 +1263,18 @@ async def errors_handler(event: types.ErrorEvent):
     return True
 
 # ============================================
-# ФУНКЦИИ ДЛЯ ТИЗЕРОВ
-# ============================================
-def detect_article_type(text: str) -> str:
-    text_lower = text.lower()
-    if any(word in text_lower for word in ['инструкция', 'как', 'шаги', 'порядок', 'пошагово']):
-        return "instruction"
-    elif any(word in text_lower for word in ['кейс', 'пример', 'ситуация', 'дело', 'случай']):
-        return "case"
-    else:
-        return "news"
-
-def format_teaser_by_type(full_text: str, article_type: str = "news") -> str:
-    lines = full_text.strip().split('\n')
-    title = lines[0].strip() if lines else "Статья"
-    body = ' '.join([line.strip() for line in lines[1:] if line.strip()])[:400]
-    
-    templates = {
-        "news": f"⚜️ **{title}**\n\n🔹 **Главное:** {body}...\n\n⚠️ Читайте полностью в боте 👇",
-        "instruction": f"📋 **{title}**\n\n🔹 **Пошаговая инструкция:**\n{body}...\n\n✅ Полная версия в боте 👇",
-        "case": f"⚖️ **{title}**\n\n🔹 **Суть дела:** {body}...\n\n📌 Детали в боте 👇"
-    }
-    return templates.get(article_type, templates["news"])
-
-def get_channel_post_keyboard(article_id: int):
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(
-        text="🔴 ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ", 
-        url=f"https://t.me/uriskonsult_test_bot?start=article_{article_id}"
-    ))
-    return builder.as_markup()
-
-# ============================================
 # ПЛАНИРОВЩИК С ПУБЛИКАЦИЕЙ ПОСТОВ
 # ============================================
 
 async def run_scheduler():
     """Функция планировщика, запускаемая в фоне"""
-    logger.info("🚀 Планировщик запущен")
-    print("🚀 Планировщик запущен")
+    # ПРИНУДИТЕЛЬНЫЙ ВЫВОД ДЛЯ ПРОВЕРКИ
+    print("🔴🔴🔴 ПЛАНИРОВЩИК ЗАПУЩЕН (print)")
+    logger.info("🔴🔴🔴 ПЛАНИРОВЩИК ЗАПУЩЕН (logger)")
     
     while True:
         try:
+            print("🔴 ЦИКЛ ПЛАНИРОВЩИКА РАБОТАЕТ")
             await asyncio.sleep(30)
             
             current_time = datetime.now()
@@ -1333,6 +1303,7 @@ async def run_scheduler():
                         photo_file_id = post.get('teaser_photo')
                         
                         # ВАЖНО: этот лог должен быть в логах!
+                        print(f"📸 ПЛАНИРОВЩИК: post_id={post['id']}, photo_file_id={photo_file_id}, тип={type(photo_file_id)}")
                         logger.info(f"📸 Планировщик: post_id={post['id']}, photo_file_id={photo_file_id}, тип={type(photo_file_id)}")
                         
                         if photo_file_id:
@@ -1344,8 +1315,10 @@ async def run_scheduler():
                                     parse_mode='HTML',
                                     disable_web_page_preview=False
                                 )
+                                print(f"✅ Пост {post['id']} опубликован С ФОТО")
                                 logger.info(f"✅ Пост {post['id']} опубликован С ФОТО")
                             except Exception as e:
+                                print(f"❌ Ошибка при отправке фото: {e}")
                                 logger.error(f"❌ Ошибка при отправке фото: {e}")
                                 await bot.send_message(
                                     chat_id=channel,
@@ -1355,6 +1328,7 @@ async def run_scheduler():
                                 )
                                 logger.warning(f"⚠️ Пост {post['id']} опубликован без фото")
                         else:
+                            print(f"⚠️ Пост {post['id']}: photo_file_id = None")
                             logger.warning(f"⚠️ Пост {post['id']}: photo_file_id = None")
                             await bot.send_message(
                                 chat_id=channel,
