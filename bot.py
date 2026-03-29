@@ -1331,6 +1331,7 @@ async def run_scheduler():
                         
                         # Получаем фото из БД
                         photo_file_id = post.get('teaser_photo')
+                        logger.info(f"📸 Планировщик: photo_file_id = {photo_file_id} (тип: {type(photo_file_id).__name__})")
                         
                         if photo_file_id:
                             try:
@@ -1341,7 +1342,7 @@ async def run_scheduler():
                                     parse_mode='HTML',
                                     disable_web_page_preview=False
                                 )
-                                logger.info(f"✅ Пост {post['id']} опубликован с фото")
+                                logger.info(f"✅ Пост {post['id']} опубликован с фото (file_id: {str(photo_file_id)[:20]}...)")
                             except Exception as e:
                                 logger.error(f"❌ Ошибка при отправке фото: {e}")
                                 await bot.send_message(
@@ -1350,8 +1351,9 @@ async def run_scheduler():
                                     parse_mode='HTML',
                                     disable_web_page_preview=False
                                 )
-                                logger.warning(f"⚠️ Пост {post['id']} опубликован без фото")
+                                logger.warning(f"⚠️ Пост {post['id']} опубликован без фото (ошибка: {e})")
                         else:
+                            logger.warning(f"⚠️ photo_file_id = None, отправляем без фото")
                             await bot.send_message(
                                 chat_id=channel,
                                 text=post_text,
@@ -1371,6 +1373,7 @@ async def run_scheduler():
         except Exception as e:
             logger.error(f"❌ Ошибка в планировщике: {e}")
             await asyncio.sleep(10)
+
 # ============================================
 # СЛЕДУЮЩИЙ БЛОК (WEBHOOK НАСТРОЙКИ)
 # ============================================
