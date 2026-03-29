@@ -1263,93 +1263,81 @@ async def errors_handler(event: types.ErrorEvent):
     return True
 
 # ============================================
-# ПЛАНИРОВЩИК С ПУБЛИКАЦИЕЙ ПОСТОВ
+# ПЛАНИРОВЩИК С ПУБЛИКАЦИЕЙ ПОСТОВ (УПРОЩЁННАЯ ВЕРСИЯ)
 # ============================================
 
 async def run_scheduler():
     """Функция планировщика, запускаемая в фоне"""
-    # ПРИНУДИТЕЛЬНЫЙ ВЫВОД ДЛЯ ПРОВЕРКИ
-    print("🔴🔴🔴 ПЛАНИРОВЩИК ЗАПУЩЕН (print)")
-    logger.info("🔴🔴🔴 ПЛАНИРОВЩИК ЗАПУЩЕН (logger)")
+    logger.info("🚀 Планировщик запущен")
     
     while True:
         try:
-            print("🔴 ЦИКЛ ПЛАНИРОВЩИКА РАБОТАЕТ")
-            await asyncio.sleep(30)
+            # Проверяем каждые 15 секунд
+            await asyncio.sleep(15)
             
-            current_time = datetime.now()
-            logger.info(f"⏰ Проверка постов в {current_time.strftime('%H:%M:%S')}")
+            now_utc = datetime.now()
+            logger.info(f"⏰ Проверка постов в {now_utc.strftime('%H:%M:%S')} UTC")
             
-            # Получаем посты для публикации
-            posts = await db.get_pending_posts()
+            # Получаем все неопубликованные статьи
+            all_articles = await db.get_articles_list()
+            posts_to_publish = []
             
-            if posts:
-                logger.info(f"📋 Найдено {len(posts)} постов для публикации")
+            for article in all_articles:
+                if article.get('published'):
+                    continue
                 
-                for post in posts:
-                    try:
-                        channel = config['CHANNEL_ID']
-                        
-                        # Формируем пост для канала
-                        post_text = (
-                            f"📌 **ТЕМА ДНЯ**\n\n"
-                            f"**{post['teaser_title']}**\n\n"
-                            f"{post['teaser_text']}\n\n"
-                            f"**ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ**\n"
-                            f"https://t.me/uriskonsult_test_bot?start=article_{post['id']}"
+                teaser_time_msk = article.get('teaser_time')
+                if not teaser_time_msk:
+                    continue
+                
+                teaser_time_utc = teaser_time_msk - timedelta(hours=3)
+                
+                if teaser_time_utc <= now_utc:
+                    posts_to_publish.append(article)
+                    logger.info(f"📊 Статья #{article['id']} ГОТОВА к публикации!")
+            
+            # Публикуем
+            for post in posts_to_publish:
+                try:
+                    channel = config['CHANNEL_ID']
+                    
+                    post_text = (
+                        f"📌 **ТЕМА ДНЯ**\n\n"
+                        f"**{post['teaser_title']}**\n\n"
+                        f"{post['teaser_text']}\n\n"
+                        f"**ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ**\n"
+                        f"https://t.me/uriskonsult_test_bot?start=article_{post['id']}"
+                    )
+                    
+                    photo_file_id = post.get('teaser_photo')
+                    logger.info(f"📸 Фото для статьи #{post['id']}: {photo_file_id}")
+                    
+                    if photo_file_id:
+                        await bot.send_photo(
+                            chat_id=channel,
+                            photo=photo_file_id,
+                            caption=post_text,
+                            parse_mode='HTML'
                         )
-                        
-                        # Получаем фото из БД
-                        photo_file_id = post.get('teaser_photo')
-                        
-                        # ВАЖНО: этот лог должен быть в логах!
-                        print(f"📸 ПЛАНИРОВЩИК: post_id={post['id']}, photo_file_id={photo_file_id}, тип={type(photo_file_id)}")
-                        logger.info(f"📸 Планировщик: post_id={post['id']}, photo_file_id={photo_file_id}, тип={type(photo_file_id)}")
-                        
-                        if photo_file_id:
-                            try:
-                                await bot.send_photo(
-                                    chat_id=channel,
-                                    photo=photo_file_id,
-                                    caption=post_text,
-                                    parse_mode='HTML',
-                                    disable_web_page_preview=False
-                                )
-                                print(f"✅ Пост {post['id']} опубликован С ФОТО")
-                                logger.info(f"✅ Пост {post['id']} опубликован С ФОТО")
-                            except Exception as e:
-                                print(f"❌ Ошибка при отправке фото: {e}")
-                                logger.error(f"❌ Ошибка при отправке фото: {e}")
-                                await bot.send_message(
-                                    chat_id=channel,
-                                    text=post_text,
-                                    parse_mode='HTML',
-                                    disable_web_page_preview=False
-                                )
-                                logger.warning(f"⚠️ Пост {post['id']} опубликован без фото")
-                        else:
-                            print(f"⚠️ Пост {post['id']}: photo_file_id = None")
-                            logger.warning(f"⚠️ Пост {post['id']}: photo_file_id = None")
-                            await bot.send_message(
-                                chat_id=channel,
-                                text=post_text,
-                                parse_mode='HTML',
-                                disable_web_page_preview=False
-                            )
-                            logger.info(f"✅ Пост {post['id']} опубликован без фото")
-                        
-                        # Обновляем статус
-                        await db.update_post_status(post['id'], 'published')
-                        
-                    except Exception as e:
-                        logger.error(f"❌ Ошибка публикации поста {post['id']}: {e}")
-            else:
-                logger.info("📭 Нет постов для публикации")
-                
+                        logger.info(f"✅ Пост #{post['id']} опубликован С ФОТО")
+                    else:
+                        await bot.send_message(
+                            chat_id=channel,
+                            text=post_text,
+                            parse_mode='HTML'
+                        )
+                        logger.info(f"✅ Пост #{post['id']} опубликован БЕЗ ФОТО")
+                    
+                    # Помечаем как опубликованное
+                    await db.update_post_status(post['id'], 'published')
+                    
+                except Exception as e:
+                    logger.error(f"❌ Ошибка публикации поста #{post['id']}: {e}")
+            
         except Exception as e:
             logger.error(f"❌ Ошибка в планировщике: {e}")
             await asyncio.sleep(10)
-
+            
 # ============================================
 # СЛЕДУЮЩИЙ БЛОК (WEBHOOK НАСТРОЙКИ)
 # ============================================
