@@ -868,62 +868,74 @@ async def admin_exit(callback: CallbackQuery, state: FSMContext = None):
 async def cmd_add_article(message: Message, state: FSMContext, **kwargs):
     await message.answer(
         "📝 Добавление новой статьи\n\n"
-        "Отправьте полный текст статьи:"
+        "**Шаг 1 из 5:** Отправьте ПОЛНЫЙ текст статьи (для бота):"
     )
-    await state.set_state(ArticleStates.waiting_for_text)
+    await state.set_state(ArticleStates.full_text)
 
-@dp.message(ArticleStates.waiting_for_text)
-async def process_article_text(message: Message, state: FSMContext):
+@dp.message(ArticleStates.full_text)
+async def process_full_text(message: Message, state: FSMContext):
     if not message.text:
-        await message.answer("❌ Пожалуйста, отправьте текст статьи.")
+        await message.answer("❌ Пожалуйста, отправьте текст.")
         return
-    
-    # Очищаем текст от лишних метаданных
-    raw_text = message.text
-    lines = raw_text.split('\n')
-    cleaned_lines = []
-    
-    for line in lines:
-        # Пропускаем строки, похожие на "[28.03.2026 20:53] Эдуард Секриер:"
-        # Условие: строка начинается с [, содержит ] и :
-        if not (line.strip().startswith('[') and ']' in line and ':' in line):
-            cleaned_lines.append(line)
-    
-    cleaned_text = '\n'.join(cleaned_lines).strip()
-    
-    await state.update_data(article_text=cleaned_text)
+    await state.update_data(full_text=message.text)
     
     await message.answer(
-        "📸 Отправьте фото для тизера\n\n"
-        "Фото будет автоматически сжато до ~500 КБ\n"
-        "Если не отправите фото, статья сохранится без него"
+        "📝 **Шаг 2 из 5:** Введите ЗАГОЛОВОК тизера (для канала):\n\n"
+        "Например: «Три акта, которые выигрывают суды»"
     )
-    await state.set_state(ArticleStates.waiting_for_photo)
+    await state.set_state(ArticleStates.teaser_title)
 
-@dp.message(ArticleStates.waiting_for_photo)
-async def process_article_photo(message: Message, state: FSMContext):
-    if not message.photo:
-        await message.answer(
-            "⚠️ Фото не получено. Продолжаем без фото.\n\n"
-            "📅 Укажите дату и время публикации:"
-        )
-        await state.set_state(ArticleStates.waiting_for_time)
+@dp.message(ArticleStates.teaser_title)
+async def process_teaser_title(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Пожалуйста, отправьте заголовок.")
         return
+    await state.update_data(teaser_title=message.text.strip())
     
-    # Сохраняем сообщение с фото для последующей обработки
-    await state.update_data(photo_message=message)
+    await message.answer(
+        "📝 **Шаг 3 из 5:** Введите ТИЗЕР (короткий текст для канала, 300-500 символов):\n\n"
+        "Это будет первая часть поста в канале"
+    )
+    await state.set_state(ArticleStates.teaser_text)
+
+@dp.message(ArticleStates.teaser_text)
+async def process_teaser_text(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Пожалуйста, отправьте текст тизера.")
+        return
+    await state.update_data(teaser_text=message.text.strip())
+    
+    await message.answer(
+        "📸 **Шаг 4 из 5:** Отправьте ФОТО для тизера\n\n"
+        "Фото будет прикреплено к посту в канале\n\n"
+        "Если не хотите добавлять фото — отправьте любое слово, например «пропустить»"
+    )
+    await state.set_state(ArticleStates.photo)
+
+@dp.message(ArticleStates.photo)
+async def process_article_photo(message: Message, state: FSMContext):
+    if message.photo:
+        # Получаем file_id самого большого фото
+        photo_file_id = message.photo[-1].file_id
+        await state.update_data(photo_file_id=photo_file_id)
+        logger.info(f"📸 Фото получено, file_id: {photo_file_id[:20]}...")
+    else:
+        # Фото не отправлено
+        await state.update_data(photo_file_id=None)
+        await message.answer("⚠️ Фото не добавлено. Продолжаем без фото.")
+    
+    await state.set_state(ArticleStates.time)
     
     example = datetime.now() + timedelta(hours=1)
     example_str = example.strftime("%d.%m.%Y %H:%M")
     await message.answer(
-        "📅 Укажите дату и время публикации тизера\n\n"
+        "📅 **Шаг 5 из 5:** Укажите дату и время публикации тизера\n\n"
         f"Формат: ДД.ММ.ГГГГ ЧЧ:ММ\n"
         f"Например: {example_str}\n\n"
         "🕐 Время указывается МСК"
     )
-    await state.set_state(ArticleStates.waiting_for_time)
 
-@dp.message(ArticleStates.waiting_for_time)
+@dp.message(ArticleStates.time)
 async def process_article_time(message: Message, state: FSMContext):
     try:
         msk_time = datetime.strptime(message.text.strip(), "%d.%m.%Y %H:%M")
@@ -938,37 +950,26 @@ async def process_article_time(message: Message, state: FSMContext):
             return
         
         data = await state.get_data()
-        article_text = data['article_text']
         
         # Сохраняем статью в БД
-        article_id = await db.add_article(article_text, msk_time)
-        
-        photo_path = None
-        photo_file_id = None
-        
-        # Обрабатываем фото, если оно было отправлено
-        if 'photo_message' in data:
-            try:
-                photo_msg = data['photo_message']
-                # Получаем file_id самого большого фото
-                photo_file_id = photo_msg.photo[-1].file_id
-                
-                # Сохраняем file_id в БД (поле photo_path)
-                await db.update_article_photo(article_id, photo_file_id)
-                photo_path = photo_file_id
-                logger.info(f"✅ Фото для статьи #{article_id} сохранено (file_id)")
-            except Exception as e:
-                logger.error(f"❌ Ошибка сохранения фото: {e}")
+        article_id = await db.add_article(
+            full_text=data['full_text'],
+            teaser_title=data['teaser_title'],
+            teaser_text=data['teaser_text'],
+            publish_time=msk_time,
+            photo_file_id=data.get('photo_file_id')
+        )
         
         # Генерируем deep link
         deep_link = f"@uriskonsult_bot?start=article_{article_id}"
         
         response = f"✅ **Статья #{article_id} добавлена!**\n\n"
-        response += f"🔗 **Ссылка для тизера:**\n{deep_link}\n\n"
-        response += f"📅 Публикация тизера запланирована на {msk_time.strftime('%d.%m.%Y %H:%M')} МСК.\n"
+        response += f"📌 Заголовок: {data['teaser_title']}\n"
+        response += f"📅 Публикация тизера: {msk_time.strftime('%d.%m.%Y %H:%M')} МСК.\n"
+        response += f"🔗 Ссылка для бота: {deep_link}\n"
         
-        if photo_path:
-            response += f"\n📸 Фото сохранено (будет использовано при публикации)"
+        if data.get('photo_file_id'):
+            response += f"\n📸 Фото сохранено"
         else:
             response += f"\n⚠️ Статья сохранена без фото"
         
@@ -990,7 +991,8 @@ async def cmd_list_articles(message: Message, **kwargs):
     for article in articles[:10]:
         deep_link = f"@uriskonsult_bot?start=article_{article['id']}"
         response += f"🔹 **ID {article['id']}**\n"
-        response += f"📝 {article['full_text'][:50]}...\n"
+        response += f"📌 Заголовок: {article.get('teaser_title', 'Без заголовка')}\n"
+        response += f"📝 {article.get('full_text', '')[:50]}...\n"
         response += f"🔗 {deep_link}\n\n"
     await message.answer(response)
 
