@@ -1313,16 +1313,18 @@ async def run_scheduler():
                         
                         # Формируем пост для канала по новой структуре
                         # 📌 ТЕМА ДНЯ
-                        # [фото]
+                        # 
                         # {заголовок}
+                        # 
                         # {тизер}
-                        # ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ
+                        # 
+                        # ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ — ссылка
                         
                         post_text = (
                             f"📌 **ТЕМА ДНЯ**\n\n"
                             f"**{post['teaser_title']}**\n\n"
                             f"{post['teaser_text']}\n\n"
-                            f"**ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ**"
+                            f"[ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ](https://t.me/uriskonsult_test_bot?start=article_{post['id']})"
                         )
                         
                         # Получаем фото из БД
@@ -1335,7 +1337,8 @@ async def run_scheduler():
                                     chat_id=channel,
                                     photo=photo_file_id,  # file_id
                                     caption=post_text,
-                                    parse_mode='HTML'
+                                    parse_mode='HTML',
+                                    disable_web_page_preview=True
                                 )
                                 logger.info(f"✅ Пост {post['id']} опубликован с фото")
                             except Exception as e:
@@ -1344,7 +1347,8 @@ async def run_scheduler():
                                 await bot.send_message(
                                     chat_id=channel,
                                     text=post_text,
-                                    parse_mode='HTML'
+                                    parse_mode='HTML',
+                                    disable_web_page_preview=True
                                 )
                                 logger.warning(f"⚠️ Пост {post['id']} опубликован без фото (ошибка фото)")
                         else:
@@ -1352,7 +1356,8 @@ async def run_scheduler():
                             await bot.send_message(
                                 chat_id=channel,
                                 text=post_text,
-                                parse_mode='HTML'
+                                parse_mode='HTML',
+                                disable_web_page_preview=True
                             )
                             logger.info(f"✅ Пост {post['id']} опубликован без фото")
                         
