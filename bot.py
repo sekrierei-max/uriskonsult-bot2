@@ -764,10 +764,13 @@ async def cmd_consult(message: Message):
 # ============================================
 # СОСТОЯНИЯ ДЛЯ СТАТЕЙ
 # ============================================
+
 class ArticleStates(StatesGroup):
-    waiting_for_text = State()
-    waiting_for_photo = State()  # ДОБАВЛЕНО
-    waiting_for_time = State()
+    full_text = State()      # полный текст для бота
+    teaser_title = State()   # заголовок тизера
+    teaser_text = State()    # короткий текст тизера
+    photo = State()          # фото
+    time = State()           # дата публикации
 
 # ============================================
 # АДМИН-КОМАНДЫ (через кнопки)
