@@ -872,6 +872,9 @@ async def process_teaser_title(message: Message, state: FSMContext):
     await state.update_data(teaser_title=message.text.strip())
     
     await message.answer(
+        "📝 **Шаг 3 из 5:** Введите ТИЗЕР (короткий текст для канала):"
+    )
+    await state.set_state(ArticleStates.teaser_text)
         "📝 **Шаг 3 из 5:** Введите ТИЗЕР (короткий текст для канала, 300-500 символов):\n\n"
         "Это будет основная часть поста в канале"
     )
