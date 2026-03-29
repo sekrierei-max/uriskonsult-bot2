@@ -1322,7 +1322,7 @@ async def run_scheduler():
                     try:
                         channel = config['CHANNEL_ID']
                         
-                        # Формируем пост для канала                        # Формируем пост для канала
+                        # Формируем пост для канала
                         post_text = (
                             f"📌 **ТЕМА ДНЯ**\n\n"
                             f"**{post['teaser_title']}**\n\n"
@@ -1361,27 +1361,10 @@ async def run_scheduler():
                                 disable_web_page_preview=False
                             )
                             logger.info(f"✅ Пост {post['id']} опубликован без фото")
-                                logger.info(f"✅ Пост {post['id']} опубликован с фото")
-                            except Exception as e:
-                                logger.error(f"❌ Ошибка при отправке фото: {e}")
-                                await bot.send_message(
-                                    chat_id=channel,
-                                    text=post_text,
-                                    parse_mode='HTML',
-                                    disable_web_page_preview=True
-                                )
-                                logger.warning(f"⚠️ Пост {post['id']} опубликован без фото")
-                        else:
-                            await bot.send_message(
-                                chat_id=channel,
-                                text=post_text,
-                                parse_mode='HTML',
-                                disable_web_page_preview=True
-                            )
-                            logger.info(f"✅ Пост {post['id']} опубликован без фото")
                         
+                        # Обновляем статус
                         await db.update_post_status(post['id'], 'published')
-                            
+                        
                     except Exception as e:
                         logger.error(f"❌ Ошибка публикации поста {post['id']}: {e}")
             else:
@@ -1390,7 +1373,6 @@ async def run_scheduler():
         except Exception as e:
             logger.error(f"❌ Ошибка в планировщике: {e}")
             await asyncio.sleep(10)
-
 # ============================================
 # СЛЕДУЮЩИЙ БЛОК (WEBHOOK НАСТРОЙКИ)
 # ============================================
