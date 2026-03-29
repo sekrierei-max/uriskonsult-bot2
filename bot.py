@@ -1327,12 +1327,13 @@ async def run_scheduler():
                     try:
                         channel = config['CHANNEL_ID']
                         
-                        # Формируем пост для канала
+                        # Формируем пост для канала                        # Формируем пост для канала
                         post_text = (
                             f"📌 **ТЕМА ДНЯ**\n\n"
                             f"**{post['teaser_title']}**\n\n"
                             f"{post['teaser_text']}\n\n"
-                            f"[ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ](https://t.me/uriskonsult_test_bot?start=article_{post['id']})"
+                            f"**ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ**\n"
+                            f"https://t.me/uriskonsult_test_bot?start=article_{post['id']}"
                         )
                         
                         # Получаем фото из БД
@@ -1345,8 +1346,26 @@ async def run_scheduler():
                                     photo=photo_file_id,
                                     caption=post_text,
                                     parse_mode='HTML',
-                                    disable_web_page_preview=True
+                                    disable_web_page_preview=False
                                 )
+                                logger.info(f"✅ Пост {post['id']} опубликован с фото")
+                            except Exception as e:
+                                logger.error(f"❌ Ошибка при отправке фото: {e}")
+                                await bot.send_message(
+                                    chat_id=channel,
+                                    text=post_text,
+                                    parse_mode='HTML',
+                                    disable_web_page_preview=False
+                                )
+                                logger.warning(f"⚠️ Пост {post['id']} опубликован без фото")
+                        else:
+                            await bot.send_message(
+                                chat_id=channel,
+                                text=post_text,
+                                parse_mode='HTML',
+                                disable_web_page_preview=False
+                            )
+                            logger.info(f"✅ Пост {post['id']} опубликован без фото")
                                 logger.info(f"✅ Пост {post['id']} опубликован с фото")
                             except Exception as e:
                                 logger.error(f"❌ Ошибка при отправке фото: {e}")
