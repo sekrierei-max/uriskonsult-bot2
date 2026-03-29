@@ -515,17 +515,6 @@ async def send_welcome_post(message: Message, source: str = "send_welcome_post")
     
     logger.info(f"🔴 Функция send_welcome_post ВЫЗВАНА. ID: {call_id}, Источник: {source}, Вызвана из: {caller_name}, Пользователь: {message.from_user.id}")
     
-    photo_path = os.path.join("images", "max_full.jpg")
-    if os.path.exists(photo_path):
-        try:
-            photo = FSInputFile(photo_path)
-            await message.answer_photo(photo)
-            logger.info(f"📸 Фото отправлено. ID: {call_id}")
-        except Exception as e:
-            logger.error(f"❌ Ошибка фото в welcome post: {e}")
-    else:
-        logger.warning(f"⚠️ Фото {photo_path} не найдено, отправляю только текст")
-    
     text = (
         "👋 Добро пожаловать!\n\n"
         "Меня зовут Эдуард Секриер, я юрист с 29-летним стажем.\n"
