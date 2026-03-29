@@ -1322,6 +1322,7 @@ async def run_scheduler():
             current_time = datetime.now()
             logger.info(f"⏰ Проверка постов в {current_time.strftime('%H:%M:%S')}")
             
+            # Получаем посты для публикации
             posts = await db.get_pending_posts()
             
             if posts:
@@ -1331,70 +1332,52 @@ async def run_scheduler():
                     try:
                         channel = config['CHANNEL_ID']
                         
-                        full_text = post['content']
-                        lines = full_text.split('\n')
-                        title = lines[0].strip() if lines else "Статья"
-                        body = ' '.join([line.strip() for line in lines[1:] if line.strip()])[:300]
+                        # Формируем пост для канала по новой структуре
+                        # 📌 ТЕМА ДНЯ
+                        # [фото]
+                        # {заголовок}
+                        # {тизер}
+                        # ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ
                         
                         post_text = (
-                            f"⚜️ **{title}**\n\n"
-                            f"{body}...\n\n"
-                            f"⚠️ Нажмите кнопку ниже, чтобы прочитать полностью в боте 👇"
+                            f"📌 **ТЕМА ДНЯ**\n\n"
+                            f"**{post['teaser_title']}**\n\n"
+                            f"{post['teaser_text']}\n\n"
+                            f"**ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ**"
                         )
                         
-                        photo_path = post.get('teaser_photo')
+                        # Получаем фото из БД
+                        photo_file_id = post.get('teaser_photo')
                         
-                        if photo_path:
+                        if photo_file_id:
                             try:
-                                if not os.path.exists(photo_path):
-                                    await bot.send_photo(
-                                        chat_id=channel,
-                                        photo=photo_path,
-                                        caption=post_text,
-                                        parse_mode='HTML',
-                                        reply_markup=get_channel_post_keyboard(post['id'])
-                                    )
-                                    logger.info(f"✅ Пост {post['id']} опубликован с фото (file_id)")
-                                else:
-                                    photo = FSInputFile(photo_path)
-                                    await bot.send_photo(
-                                        chat_id=channel,
-                                        photo=photo,
-                                        caption=post_text,
-                                        parse_mode='HTML',
-                                        reply_markup=get_channel_post_keyboard(post['id'])
-                                    )
-                                    logger.info(f"✅ Пост {post['id']} опубликован с фото (файл: {photo_path})")
+                                # Отправляем с фото
+                                await bot.send_photo(
+                                    chat_id=channel,
+                                    photo=photo_file_id,  # file_id
+                                    caption=post_text,
+                                    parse_mode='HTML'
+                                )
+                                logger.info(f"✅ Пост {post['id']} опубликован с фото")
                             except Exception as e:
                                 logger.error(f"❌ Ошибка при отправке фото: {e}")
+                                # Если фото не отправилось, публикуем без фото
                                 await bot.send_message(
                                     chat_id=channel,
                                     text=post_text,
-                                    parse_mode='HTML',
-                                    reply_markup=get_channel_post_keyboard(post['id'])
+                                    parse_mode='HTML'
                                 )
                                 logger.warning(f"⚠️ Пост {post['id']} опубликован без фото (ошибка фото)")
                         else:
-                            default_photo = os.path.join("images", "max_full.jpg")
-                            if os.path.exists(default_photo):
-                                photo = FSInputFile(default_photo)
-                                await bot.send_photo(
-                                    chat_id=channel,
-                                    photo=photo,
-                                    caption=post_text,
-                                    parse_mode='HTML',
-                                    reply_markup=get_channel_post_keyboard(post['id'])
-                                )
-                                logger.info(f"✅ Пост {post['id']} опубликован с дефолтным фото")
-                            else:
-                                await bot.send_message(
-                                    chat_id=channel,
-                                    text=post_text,
-                                    parse_mode='HTML',
-                                    reply_markup=get_channel_post_keyboard(post['id'])
-                                )
-                                logger.warning(f"⚠️ Пост {post['id']} опубликован без фото")
-                            
+                            # Без фото
+                            await bot.send_message(
+                                chat_id=channel,
+                                text=post_text,
+                                parse_mode='HTML'
+                            )
+                            logger.info(f"✅ Пост {post['id']} опубликован без фото")
+                        
+                        # Обновляем статус
                         await db.update_post_status(post['id'], 'published')
                             
                     except Exception as e:
