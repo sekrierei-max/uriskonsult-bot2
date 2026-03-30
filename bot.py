@@ -233,12 +233,12 @@ FREE_DOCS = {
         }
     },
     "arenda": {
-        "name": "🏠 Аренда жилья",
-        "items": {
-            1: {"name": "Чек-лист для аренды", "file": "checklist_arenda.pdf"},
-            2: {"name": "Памятка арендатору", "file": "pamyatka_arendator.pdf"}
-        }
-    },
+    "name": "🏠 Аренда/найм помещений",  # ← исправлено
+    "items": {
+        1: {"name": "Чек-лист", "file": "checklist_arenda.pdf"},
+        2: {"name": "Памятка", "file": "pamyatka_arendator.pdf"}
+    }
+},
     "docs": {
         "name": "📄 Документы",
         "items": {
