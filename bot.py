@@ -250,6 +250,33 @@ FREE_DOCS = {
 }
 
 # ============================================
+# ОБРАБОТЧИК КЕЙСОВ
+# ============================================
+@dp.callback_query(lambda c: c.data.startswith("case_"))
+async def handle_case(callback: CallbackQuery):
+    case_id = int(callback.data.split("_")[1])
+    case = cases_db.get(case_id)
+    
+    if not case:
+        await callback.answer("Кейс не найден", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    # Формируем текст кейса
+    case_text = (
+        f"📂 **{case['title']}**\n\n"
+        f"📅 **Дата:** {case['date']}\n"
+        f"📌 **Категория:** {case['category']}\n\n"
+        f"**Ситуация:**\n{case['situation']}\n\n"
+        f"**Вопрос:**\n{case['question']}\n\n"
+        f"**Решение:**\n{case['solution']}\n\n"
+        f"**Результат:**\n{case['result']}"
+    )
+    
+    await callback.message.answer(case_text)
+
+# ============================================
 # ДАННЫЕ ДЛЯ КЕЙСОВ
 # ============================================
 cases_db = {
