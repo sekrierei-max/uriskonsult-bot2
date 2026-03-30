@@ -1210,18 +1210,9 @@ async def cmd_old_posts(message: Message, **kwargs):
         await message.answer(f"❌ Ошибка: {e}")
 
 # ============================================
-# УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ДИАГНОСТИКИ (ВРЕМЕННО)
-# ============================================
-
-@dp.callback_query()
-async def catch_all_callbacks(callback: CallbackQuery):
-    print(f"🔴🔴🔴 ПОЛУЧЕН CALLBACK: {callback.data}")
-    logger.info(f"🔴🔴🔴 ПОЛУЧЕН CALLBACK: {callback.data}")
-    await callback.answer(f"Получен callback: {callback.data}")
-
-# ============================================
 # ОБРАБОТЧИКИ КНОПОК
 # ============================================
+
 @dp.callback_query(lambda c: c.data == "menu_cases")
 async def menu_cases(callback: CallbackQuery):
     await cmd_cases(callback.message)
@@ -1259,111 +1250,6 @@ async def back_to_main(callback: CallbackQuery):
     )
     await callback.answer()
 
-@dp.callback_query(lambda c: c.data == "other_articles")
-async def other_articles_handler(callback: CallbackQuery):
-    await cmd_free(callback.message)
-    await callback.answer()
-
-@dp.callback_query(lambda c: c.data == "other_articles")
-async def other_articles_handler(callback: CallbackQuery):
-    await cmd_free(callback.message)
-    await callback.answer()
-
-# ============================================
-# ОБРАБОТЧИК КАТЕГОРИЙ БЕСПЛАТНЫХ ДОКУМЕНТОВ
-# ============================================
-@dp.callback_query(lambda c: c.data.startswith("cat_"))
-async def handle_category(callback: CallbackQuery):
-    category_key = callback.data.replace("cat_", "")
-    category = FREE_DOCS.get(category_key)
-    
-    if not category:
-        await callback.answer("Категория не найдена", show_alert=True)
-        return
-    
-    await callback.answer()
-    
-    # Формируем клавиатуру с документами
-    builder = InlineKeyboardBuilder()
-    for doc_id, doc in category["items"].items():
-        builder.button(
-            text=doc["name"],
-            callback_data=f"doc_{category_key}_{doc_id}"
-        )
-    builder.button(text="◀️ Назад", callback_data="back_to_free")
-    builder.adjust(1)
-    
-    await callback.message.answer(
-        f"📁 **{category['name']}**\n\nВыберите документ:",
-        reply_markup=builder.as_markup()
-    )
-
-# ============================================
-# ОБРАБОТЧИК ВЫБОРА ДОКУМЕНТА
-# ============================================
-@dp.callback_query(lambda c: c.data.startswith("doc_"))
-async def handle_document(callback: CallbackQuery):
-    parts = callback.data.split("_")
-    if len(parts) < 3:
-        await callback.answer("Ошибка", show_alert=True)
-        return
-    
-    category_key = parts[1]
-    doc_id = int(parts[2])
-    
-    category = FREE_DOCS.get(category_key)
-    if not category or doc_id not in category["items"]:
-        await callback.answer("Документ не найден", show_alert=True)
-        return
-    
-    await callback.answer()
-    
-    doc = category["items"][doc_id]
-    file_path = os.path.join("files", doc["file"])
-    
-    if os.path.exists(file_path):
-        try:
-            document = FSInputFile(file_path)
-            await callback.message.answer_document(
-                document,
-                caption=f"📄 **{doc['name']}**\n\nФайл готов к скачиванию."
-            )
-        except Exception as e:
-            logger.error(f"Ошибка отправки файла: {e}")
-            await callback.message.answer("❌ Ошибка при отправке файла.")
-    else:
-        await callback.message.answer(f"❌ Файл не найден: {doc['file']}")
-
-# ============================================
-# ОБРАБОТЧИК НАЗАД К КАТЕГОРИЯМ
-# ============================================
-@dp.callback_query(lambda c: c.data == "menu_shop")
-async def menu_shop(callback: CallbackQuery):
-    await cmd_shop(callback.message)
-    await callback.answer()
-
-@dp.callback_query(lambda c: c.data == "menu_consult")
-async def menu_consult(callback: CallbackQuery):
-    await cmd_consult(callback.message)
-    await callback.answer()
-
-@dp.callback_query(lambda c: c.data == "menu_help")
-async def menu_help(callback: CallbackQuery):
-    await cmd_help(callback.message)
-    await callback.answer()
-
-@dp.callback_query(lambda c: c.data == "back_to_main")
-async def back_to_main(callback: CallbackQuery):
-    text = (
-        "📌 Чтобы продолжить, выберите нужный раздел в меню "
-        "и получите готовые инструкции, памятки или шаблоны документов👇"
-    )
-    await callback.message.answer(
-        text,
-        reply_markup=get_main_keyboard()
-    )
-    await callback.answer()
-
 # ============================================
 # ОБРАБОТЧИК КАТЕГОРИЙ БЕСПЛАТНЫХ ДОКУМЕНТОВ
 # ============================================
@@ -1436,10 +1322,6 @@ async def back_to_free(callback: CallbackQuery):
     await callback.answer()
     await cmd_free(callback.message)
 
-@dp.callback_query(lambda c: c.data == "consultation")
-async def consultation_handler(callback: CallbackQuery):
-    await cmd_consult(callback.message)
-    await callback.answer()
 # ============================================
 # ОБРАБОТЧИК МАГАЗИНА ДОГОВОРОВ
 # ============================================
@@ -1475,12 +1357,22 @@ async def handle_contract(callback: CallbackQuery):
         await callback.message.answer(f"❌ Файл не найден: {contract['file']}")
 
 # ============================================
-# ОБРАБОТЧИК НАЗАД К КАТЕГОРИЯМ
+# ОБРАБОТЧИК КОНСУЛЬТАЦИИ
 # ============================================
-@dp.callback_query(lambda c: c.data == "back_to_free")
-async def back_to_free(callback: CallbackQuery):
+@dp.callback_query(lambda c: c.data == "consultation")
+async def consultation_handler(callback: CallbackQuery):
+    await cmd_consult(callback.message)
     await callback.answer()
-    await cmd_free(callback.message)
+
+# ============================================
+# УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ДИАГНОСТИКИ (ВРЕМЕННО)
+# ============================================
+@dp.callback_query()
+async def catch_all_callbacks(callback: CallbackQuery):
+    print(f"🔴🔴🔴 ПОЛУЧЕН НЕИЗВЕСТНЫЙ CALLBACK: {callback.data}")
+    logger.info(f"🔴🔴🔴 ПОЛУЧЕН НЕИЗВЕСТНЫЙ CALLBACK: {callback.data}")
+    await callback.answer(f"Неизвестный callback: {callback.data}")
+
 # ============================================
 # ОБРАБОТЧИК ОШИБОК
 # ============================================
@@ -1495,6 +1387,191 @@ async def errors_handler(event: types.ErrorEvent):
         logger.error(f"Error in error handler: {e}")
     return True
 
+# ============================================
+# ПЛАНИРОВЩИК С ПУБЛИКАЦИЕЙ ПОСТОВ (УПРОЩЁННАЯ ВЕРСИЯ)
+# ============================================
+
+async def run_scheduler():
+    """Функция планировщика, запускаемая в фоне"""
+    logger.info("🚀 Планировщик запущен")
+    
+    while True:
+        try:
+            await asyncio.sleep(15)
+            
+            now_utc = datetime.now()
+            logger.info(f"⏰ Проверка постов в {now_utc.strftime('%H:%M:%S')} UTC")
+            
+            all_articles = await db.get_articles_list()
+            posts_to_publish = []
+            
+            for article in all_articles:
+                if article.get('published'):
+                    continue
+                
+                teaser_time_msk = article.get('teaser_time')
+                if not teaser_time_msk:
+                    continue
+                
+                teaser_time_utc = teaser_time_msk - timedelta(hours=3)
+                
+                if teaser_time_utc <= now_utc:
+                    posts_to_publish.append(article)
+                    logger.info(f"📊 Статья #{article['id']} ГОТОВА к публикации!")
+            
+            for post in posts_to_publish:
+                try:
+                    channel = config['CHANNEL_ID']
+                    
+                    post_text = (
+                        f"📌 **ТЕМА ДНЯ**\n\n"
+                        f"**{post['teaser_title']}**\n\n"
+                        f"{post['teaser_text']}\n\n"
+                        f"**ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ**\n"
+                        f"https://t.me/uriskonsult_test_bot?start=article_{post['id']}"
+                    )
+                    
+                    photo_file_id = post.get('teaser_photo')
+                    logger.info(f"📸 Фото для статьи #{post['id']}: {photo_file_id}")
+                    
+                    if photo_file_id:
+                        await bot.send_photo(
+                            chat_id=channel,
+                            photo=photo_file_id,
+                            caption=post_text,
+                            parse_mode='HTML'
+                        )
+                        logger.info(f"✅ Пост #{post['id']} опубликован С ФОТО")
+                    else:
+                        await bot.send_message(
+                            chat_id=channel,
+                            text=post_text,
+                            parse_mode='HTML'
+                        )
+                        logger.info(f"✅ Пост #{post['id']} опубликован БЕЗ ФОТО")
+                    
+                    await db.update_post_status(post['id'], 'published')
+                    
+                except Exception as e:
+                    logger.error(f"❌ Ошибка публикации поста #{post['id']}: {e}")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в планировщике: {e}")
+            await asyncio.sleep(10)
+
+# ============================================
+# СЛЕДУЮЩИЙ БЛОК (WEBHOOK НАСТРОЙКИ)
+# ============================================
+
+import json
+from aiohttp import web
+
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_PATH = "/webhook"
+PORT = int(os.getenv("PORT", 80))
+
+@web.middleware
+async def log_requests(request, handler):
+    print(f"\n🔴🔴🔴 ПОЛУЧЕН HTTP-ЗАПРОС: {request.method} {request.path}")
+    print(f"🔴 Headers: {dict(request.headers)}")
+    try:
+        body = await request.text()
+        if body:
+            body_preview = body[:500] + "..." if len(body) > 500 else body
+            print(f"🔴 Body (первые 500 символов): {body_preview}")
+            if 'application/json' in request.headers.get('Content-Type', ''):
+                try:
+                    json_body = json.loads(body)
+                    print(f"🔴 JSON структура: {json.dumps(json_body, indent=2, ensure_ascii=False)[:500]}")
+                except:
+                    pass
+    except Exception as e:
+        print(f"🔴 Не удалось прочитать тело запроса: {e}")
+    response = await handler(request)
+    print(f"🔴 Ответ: {response.status}")
+    return response
+
+async def handle_root(request):
+    return web.Response(
+        text="✅ Бот работает! Webhook endpoint: /webhook\n"
+             f"📊 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+             f"🔗 URL для вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}"
+    )
+
+async def handle_health(request):
+    return web.Response(text="OK", status=200)
+
+async def on_startup_webhook():
+    print("\n🚀🚀🚀 ЗАПУСК WEBHOOK НАСТРОЙКИ")
+    
+    if not WEBHOOK_URL:
+        logger.error("❌ WEBHOOK_URL не задан!")
+        print("❌ WEBHOOK_URL не задан!")
+        return
+    
+    print(f"📌 Устанавливаем вебхук на: {WEBHOOK_URL}{WEBHOOK_PATH}")
+    
+    await bot.delete_webhook(drop_pending_updates=True)
+    print("✅ Старый вебхук удалён")
+    
+    await bot.set_webhook(
+        url=f"{WEBHOOK_URL}{WEBHOOK_PATH}",
+        allowed_updates=["message", "callback_query"]
+    )
+    print(f"✅ Вебхук установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
+    
+    webhook_info = await bot.get_webhook_info()
+    print(f"📊 Информация о вебхуке:")
+    print(f"   URL: {webhook_info.url}")
+    print(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
+    print(f"   Последняя ошибка: {webhook_info.last_error_message}")
+    
+    asyncio.create_task(run_scheduler())
+    asyncio.create_task(reset_limits_daily())
+    
+    await db.connect()
+    
+    logger.info("✅ Бот готов к работе через webhook")
+    print("✅ Бот готов к работе через webhook")
+
+async def on_shutdown_webhook():
+    print("\n🛑🛑🛑 ОСТАНОВКА WEBHOOK")
+    await bot.delete_webhook()
+    print("✅ Webhook удален")
+    
+    if hasattr(db, 'pool') and db.pool:
+        await db.pool.close()
+    
+    await bot.session.close()
+    logger.info("👋 Бот остановлен")
+    print("👋 Бот остановлен")
+
+app = web.Application(middlewares=[log_requests])
+app.router.add_get('/', handle_root)
+app.router.add_get('/health', handle_health)
+
+print(f"📌 Регистрируем обработчик вебхуков на путь: {WEBHOOK_PATH}")
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+
+app.on_startup.append(lambda _: on_startup_webhook())
+app.on_shutdown.append(lambda _: on_shutdown_webhook())
+
+if __name__ == "__main__":
+    if not WEBHOOK_URL:
+        logger.critical("❌ WEBHOOK_URL не задан!")
+        print("❌ WEBHOOK_URL не задан!")
+        sys.exit(1)
+    
+    print(f"\n🚀 ЗАПУСК ВЕБ-СЕРВЕРА")
+    print(f"📌 Порт: {PORT}")
+    print(f"📌 Хост: 0.0.0.0")
+    print(f"📌 Домен: {WEBHOOK_URL}")
+    print(f"📌 Путь вебхука: {WEBHOOK_PATH}")
+    print(f"📌 Полный URL вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}")
+    
+    logger.info(f"🚀 Запуск веб-сервера на порту {PORT}")
+    web.run_app(app, host="0.0.0.0", port=PORT)
+    
 # ============================================
 # ПЛАНИРОВЩИК С ПУБЛИКАЦИЕЙ ПОСТОВ (УПРОЩЁННАЯ ВЕРСИЯ)
 # ============================================
