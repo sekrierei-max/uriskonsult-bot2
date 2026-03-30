@@ -1325,8 +1325,13 @@ async def back_to_free(callback: CallbackQuery):
 # ============================================
 # ОБРАБОТЧИК МАГАЗИНА ДОГОВОРОВ
 # ============================================
+
+class ContractStates(StatesGroup):
+    waiting_for_phone = State()
+    waiting_for_comment = State()
+
 @dp.callback_query(lambda c: c.data.startswith("contract_"))
-async def handle_contract(callback: CallbackQuery):
+async def handle_contract(callback: CallbackQuery, state: FSMContext = None):
     contract_id = int(callback.data.split("_")[1])
     contract = CONTRACTS.get(contract_id)
     
@@ -1336,26 +1341,122 @@ async def handle_contract(callback: CallbackQuery):
     
     await callback.answer()
     
-    file_path = os.path.join("files", contract["file"])
+    # Кнопки для связи
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📞 Оставить заявку", callback_data=f"request_contract_{contract_id}")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_shop")]
+    ])
     
-    if os.path.exists(file_path):
+    await callback.message.answer(
+        f"📄 **{contract['name']}**\n\n"
+        f"{contract['description']}\n\n"
+        f"💰 **Цена:** {contract['price']} ₽\n\n"
+        f"Для получения договора нажмите кнопку ниже.\n"
+        f"Мы свяжемся с вами для уточнения деталей.",
+        reply_markup=keyboard
+    )
+
+@dp.callback_query(lambda c: c.data.startswith("request_contract_"))
+async def request_contract(callback: CallbackQuery, state: FSMContext):
+    contract_id = int(callback.data.split("_")[2])
+    contract = CONTRACTS.get(contract_id)
+    
+    if not contract:
+        await callback.answer("Договор не найден", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    # Сохраняем ID договора в состоянии
+    await state.update_data(contract_id=contract_id)
+    await state.set_state(ContractStates.waiting_for_phone)
+    
+    await callback.message.answer(
+        f"📞 Для получения договора **{contract['name']}**\n\n"
+        f"**Шаг 1 из 2:** Отправьте ваш номер телефона в формате:\n"
+        f"`+7 123 456-78-90` или `8 123 456-78-90`",
+        parse_mode="Markdown"
+    )
+
+@dp.message(ContractStates.waiting_for_phone)
+async def process_contract_phone(message: Message, state: FSMContext):
+    phone = message.text.strip()
+    
+    # Простая валидация номера телефона
+    import re
+    phone_pattern = re.compile(r'^(\+7|8)?[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$')
+    
+    if not phone_pattern.search(phone):
+        await message.answer(
+            "❌ Неверный формат номера.\n\n"
+            "Пожалуйста, отправьте номер в формате:\n"
+            "`+7 123 456-78-90` или `8 123 456-78-90`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    await state.update_data(phone=phone)
+    await state.set_state(ContractStates.waiting_for_comment)
+    
+    await message.answer(
+        "📝 **Шаг 2 из 2:** Напишите комментарий к заявке\n\n"
+        "Например:\n"
+        "• Какой объект сдаёте\n"
+        "• Сколько квартир в управлении\n"
+        "• Дополнительные пожелания\n\n"
+        "Если комментарий не нужен — отправьте слово **нет**"
+    )
+
+@dp.message(ContractStates.waiting_for_comment)
+async def process_contract_comment(message: Message, state: FSMContext):
+    comment = message.text.strip()
+    
+    # Если комментарий "нет" — оставляем пустым
+    if comment.lower() in ['нет', 'skip', 'пропустить', '-']:
+        comment = "Без комментария"
+    
+    data = await state.get_data()
+    contract_id = data.get('contract_id')
+    phone = data.get('phone')
+    contract = CONTRACTS.get(contract_id)
+    
+    # Отправляем уведомление администратору
+    admin_id = config.get('ADMIN_ID')
+    if admin_id:
         try:
-            document = FSInputFile(file_path)
-            await callback.message.answer_document(
-                document,
-                caption=(
-                    f"📄 **{contract['name']}**\n\n"
-                    f"{contract['description']}\n\n"
+            await bot.send_message(
+                chat_id=admin_id,
+                text=(
+                    f"🔔 **НОВЫЙ ЗАПРОС НА ДОГОВОР**\n\n"
+                    f"📄 **Договор:** {contract['name']}\n"
                     f"💰 **Цена:** {contract['price']} ₽\n"
-                    f"🔄 **Апгрейд:** {contract['upgrade_price']} ₽"
-                )
+                    f"📞 **Телефон:** `{phone}`\n"
+                    f"💬 **Комментарий:**\n_{comment[:500]}_\n\n"
+                    f"👤 **Пользователь:** @{message.from_user.username or message.from_user.first_name}\n"
+                    f"🆔 **ID:** {message.from_user.id}"
+                ),
+                parse_mode="Markdown"
             )
         except Exception as e:
-            logger.error(f"Ошибка отправки договора: {e}")
-            await callback.message.answer("❌ Ошибка при отправке договора.")
-    else:
-        await callback.message.answer(f"❌ Файл не найден: {contract['file']}")
+            logger.error(f"Ошибка отправки уведомления админу: {e}")
+    
+    # Сохраняем заявку в БД (опционально)
+    # await db.save_contract_request(contract_id, phone, comment, message.from_user.id)
+    
+    await message.answer(
+        f"✅ **Спасибо!**\n\n"
+        f"Ваша заявка на договор **{contract['name']}** получена.\n\n"
+        f"📞 Мы свяжемся с вами по номеру `{phone}` в ближайшее время.\n\n"
+        f"📌 Если не дозвонились, напишите нам: /consult",
+        parse_mode="Markdown"
+    )
+    
+    await state.clear()
 
+@dp.callback_query(lambda c: c.data == "back_to_shop")
+async def back_to_shop(callback: CallbackQuery):
+    await callback.answer()
+    await cmd_shop(callback.message)
 # ============================================
 # ОБРАБОТЧИК КОНСУЛЬТАЦИИ
 # ============================================
