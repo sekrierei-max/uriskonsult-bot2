@@ -1546,7 +1546,14 @@ async def process_consult_voice(message: Message, state: FSMContext):
     
     # Отправляем голосовое для прослушивания
     await message.answer("🎤 **Прослушайте ваше сообщение:**")
-    await message.answer_voice(voice_file_id)
+    
+    # ИСПРАВЛЕНО: используем bot.send_voice с caption
+    await bot.send_voice(
+        chat_id=message.chat.id,
+        voice=voice_file_id,
+        caption="📢 Ваше сообщение:"
+    )
+    
     await message.answer(
         "📌 **Подтвердите отправку:**\n\n"
         "Если всё правильно — нажмите «Отправить вопрос».\n"
@@ -1600,7 +1607,7 @@ async def recancel_voice(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(
         "🔄 Запись отменена. Отправьте новое голосовое сообщение."
     )
-
+    
 # ============================================
 # КОМАНДА /cancel (отмена)
 # ============================================
