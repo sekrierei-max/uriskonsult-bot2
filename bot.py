@@ -1301,6 +1301,11 @@ async def handle_document(callback: CallbackQuery):
     doc = category["items"][doc_id]
     file_path = os.path.join("files", doc["file"])
     
+    # ДИАГНОСТИКА
+    print(f"🔴 Ищем файл: {file_path}")
+    print(f"🔴 Текущая директория: {os.getcwd()}")
+    print(f"🔴 Содержимое папки files: {os.listdir('files') if os.path.exists('files') else 'папка не найдена'}")
+    
     if os.path.exists(file_path):
         try:
             document = FSInputFile(file_path)
