@@ -1472,6 +1472,7 @@ async def consultation_handler(callback: CallbackQuery):
 class ConsultStates(StatesGroup):
     waiting_for_text = State()      # для текстового вопроса
     waiting_for_voice = State()     # для голосового сообщения
+    waiting_for_confirm = State()   # для подтверждения голосового
 
 @dp.callback_query(lambda c: c.data == "consult_write")
 async def consult_write(callback: CallbackQuery, state: FSMContext):
@@ -1490,7 +1491,7 @@ async def consult_speak(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(
         "🎤 **Озвучьте ваш вопрос**\n\n"
         "Отправьте голосовое сообщение (до 2 минут).\n"
-        "Я прослушаю и отвечу.\n\n"
+        "После отправки вы сможете прослушать его и подтвердить.\n\n"
         "📌 Если хотите отменить — отправьте /cancel"
     )
 
@@ -1530,25 +1531,53 @@ async def process_consult_voice(message: Message, state: FSMContext):
         await message.answer("❌ Пожалуйста, отправьте голосовое сообщение.")
         return
     
-    # Получаем file_id голосового сообщения
+    # Сохраняем file_id голосового сообщения
     voice_file_id = message.voice.file_id
+    await state.update_data(voice_file_id=voice_file_id)
+    
+    # Кнопки подтверждения
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Отправить вопрос", callback_data="confirm_voice")],
+        [InlineKeyboardButton(text="🔄 Записать заново", callback_data="recancel_voice")]
+    ])
+    
+    await state.set_state(ConsultStates.waiting_for_confirm)
+    
+    # Отправляем голосовое для прослушивания
+    await message.answer("🎤 **Прослушайте ваше сообщение:**")
+    await message.answer_voice(voice_file_id)
+    await message.answer(
+        "📌 **Подтвердите отправку:**\n\n"
+        "Если всё правильно — нажмите «Отправить вопрос».\n"
+        "Если хотите перезаписать — нажмите «Записать заново».",
+        reply_markup=keyboard
+    )
+
+@dp.callback_query(lambda c: c.data == "confirm_voice")
+async def confirm_voice(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    voice_file_id = data.get('voice_file_id')
+    
+    if not voice_file_id:
+        await callback.answer("Ошибка, попробуйте снова", show_alert=True)
+        return
+    
+    await callback.answer()
     
     # Отправляем уведомление администратору
     admin_id = config.get('ADMIN_ID')
     if admin_id:
         try:
-            # Отправляем текст уведомления
             await bot.send_message(
                 chat_id=admin_id,
                 text=(
                     f"🎤 **НОВЫЙ ВОПРОС (голос)**\n\n"
-                    f"👤 Пользователь: @{message.from_user.username or message.from_user.first_name}\n"
-                    f"🆔 ID: {message.from_user.id}\n\n"
+                    f"👤 Пользователь: @{callback.from_user.username or callback.from_user.first_name}\n"
+                    f"🆔 ID: {callback.from_user.id}\n\n"
                     f"📎 Голосовое сообщение ниже:"
                 ),
                 parse_mode="Markdown"
             )
-            # Пересылаем голосовое сообщение
             await bot.send_voice(
                 chat_id=admin_id,
                 voice=voice_file_id
@@ -1556,11 +1585,20 @@ async def process_consult_voice(message: Message, state: FSMContext):
         except Exception as e:
             logger.error(f"Ошибка отправки голосового сообщения админу: {e}")
     
-    await message.answer(
+    await callback.message.answer(
         "✅ **Ваш вопрос принят!**\n\n"
         "Я прослушаю сообщение и отвечу в ближайшее время."
     )
     await state.clear()
+
+@dp.callback_query(lambda c: c.data == "recancel_voice")
+async def recancel_voice(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await state.clear()
+    await state.set_state(ConsultStates.waiting_for_voice)
+    await callback.message.answer(
+        "🔄 Запись отменена. Отправьте новое голосовое сообщение."
+    )
 
 # ============================================
 # КОМАНДА /cancel (отмена)
