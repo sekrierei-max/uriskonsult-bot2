@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Основной бот для управления статьями и публикациями
-ПОЛНОСТЬЮ РАБОЧАЯ ВЕРСИЯ — С УЛУЧШЕННОЙ КОНСУЛЬТАЦИЕЙ
-ИСПРАВЛЕНЫ ВСЕ ОШИБКИ
+ВЕРСИЯ ДЛЯ WEBHOOK (ПОЛНОСТЬЮ РАБОЧАЯ)
 """
 
 import asyncio
@@ -12,6 +11,7 @@ import time
 import uuid
 import inspect
 import os
+import signal
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from collections import defaultdict
@@ -25,26 +25,130 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.exceptions import TelegramBadRequest
 
+from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
+
 from src.core.config import config
 from src.core.logger import setup_logger
 from database import db
 from models import Article, ScheduledPost
 
+# ============================================
+# ФУНКЦИИ ДЛЯ РАБОТЫ С ФОТО
+# ============================================
+from PIL import Image
+import io
+import aiofiles
+
+async def compress_and_save_photo(message: Message, article_id: int) -> str:
+    """
+    Сжимает и сохраняет фото, возвращает путь к файлу
+    """
+    # Скачиваем фото
+    photo = message.photo[-1]  # Берём самое большое фото
+    file = await bot.get_file(photo.file_id)
+    file_path = file.file_path
+    photo_data = await bot.download_file(file_path)
+    
+    # Открываем изображение через PIL
+    img = Image.open(photo_data)
+    
+    # Конвертируем RGB если нужно
+    if img.mode in ('RGBA', 'LA', 'P'):
+        # Создаём белый фон для прозрачных изображений
+        background = Image.new('RGB', img.size, (255, 255, 255))
+        if img.mode == 'RGBA':
+            background.paste(img, mask=img.split()[3])
+        else:
+            background.paste(img)
+        img = background
+    
+    # Сжимаем до ~500 КБ бинарным поиском
+    target_size = 500 * 1024  # 500 КБ
+    quality_low, quality_high = 1, 95
+    best_quality = 85  # Начальное приближение
+    
+    # Создаём временный буфер для проверки размера
+    for _ in range(8):  # 8 итераций бинарного поиска
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG', quality=best_quality, optimize=True)
+        size = buffer.tell()
+        
+        if size > target_size:
+            quality_high = best_quality
+            best_quality = (quality_low + best_quality) // 2
+        else:
+            quality_low = best_quality
+            best_quality = (best_quality + quality_high) // 2
+    
+    # Сохраняем с оптимальным качеством
+    filename = f"article_{article_id}_teaser.jpg"
+    save_path = os.path.join("images", filename)
+    
+    # Сохраняем в файл
+    img.save(save_path, format='JPEG', quality=best_quality, optimize=True)
+    
+    logger.info(f"📸 Фото сохранено: {save_path}, размер: {os.path.getsize(save_path)} байт")
+    return save_path
+
+# ============================================
+# ПРИНУДИТЕЛЬНОЕ ЛОГИРОВАНИЕ
+# ============================================
+sys.stdout = open(1, 'w', encoding='utf-8', closefd=False)
+sys.stderr = open(2, 'w', encoding='utf-8', closefd=False)
+
+def signal_handler(sig, frame):
+    print(f"🔴 Получен сигнал {sig}, бот завершается")
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
+
+print("🚀 Бот ЗАПУЩЕН, принудительное логирование включено")
+print(f"📊 Python версия: {sys.version}")
+print(f"📁 Текущая директория: {os.getcwd()}")
+print(f"📂 Файлы в директории: {os.listdir('.')}")
+
+# ============================================
 # Настройка логирования
+# ============================================
 logger = setup_logger('bot')
-print(f"🤖 Инициализация бота с токеном: {config['BOT_TOKEN'][:10]}...")
-bot = Bot(token=config['BOT_TOKEN'])
+# Токен берётся из переменных окружения (секреты Amvera), не выводим его в логи
+print(f"🤖 Инициализация бота...")
+
+# ============================================
+# НАСТРОЙКА БОТА С ПРОКСИ
+# ============================================
+from aiohttp import ClientSession
+
+if config.get('PROXY_URL'):
+    try:
+        from aiohttp_socks import ProxyConnector
+        proxy_url = config['PROXY_URL']
+        connector = ProxyConnector.from_url(proxy_url)
+        session = ClientSession(connector=connector)
+        bot = Bot(token=config['BOT_TOKEN'], session=session)
+        logger.info(f"🌐 Прокси подключен: {proxy_url}")
+        print(f"🌐 Прокси подключен: {proxy_url}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка подключения прокси: {e}")
+        print(f"❌ Ошибка подключения прокси: {e}")
+        bot = Bot(token=config['BOT_TOKEN'])
+        logger.info("🌐 Прокси не используется (ошибка подключения)")
+else:
+    bot = Bot(token=config['BOT_TOKEN'])
+    logger.info("🌐 Прокси не используется")
+    print("🌐 Прокси не используется")
+
 dp = Dispatcher(storage=MemoryStorage())
 
 # ============================================
-# ЗАЩИТА ОТ СПАМА ДЛЯ КОНСУЛЬТАЦИЙ
+# ЗАЩИТА ОТ СПАМА
 # ============================================
-
 user_message_counts = defaultdict(int)
 user_last_reset = {}
 
 def check_message_limit(user_id: int) -> bool:
-    """Проверяет, не превысил ли пользователь лимит сообщений (3 в сутки)"""
     current_time = time.time()
     one_day = 24 * 60 * 60
     
@@ -55,7 +159,6 @@ def check_message_limit(user_id: int) -> bool:
     return user_message_counts[user_id] < 3
 
 async def reset_limits_daily():
-    """Автоматический сброс лимитов сообщений каждые 24 часа"""
     while True:
         await asyncio.sleep(24 * 60 * 60)
         user_message_counts.clear()
@@ -65,7 +168,6 @@ async def reset_limits_daily():
 # ============================================
 # ДАННЫЕ ДЛЯ МАГАЗИНА
 # ============================================
-
 CONTRACTS = {
     1: {
         "name": "🏠 Базовый",
@@ -107,7 +209,6 @@ CONTRACTS = {
 # ============================================
 # ДАННЫЕ ДЛЯ БЕСПЛАТНЫХ ДОКУМЕНТОВ
 # ============================================
-
 FREE_DOCS = {
     "zaliv": {
         "name": "💧 Залив",
@@ -132,12 +233,12 @@ FREE_DOCS = {
         }
     },
     "arenda": {
-        "name": "🏠 Аренда жилья",
-        "items": {
-            1: {"name": "Чек-лист для аренды", "file": "checklist_arenda.pdf"},
-            2: {"name": "Памятка арендатору", "file": "pamyatka_arendator.pdf"}
-        }
-    },
+    "name": "🏠 Аренда/найм помещений",  # ← исправлено
+    "items": {
+        1: {"name": "Чек-лист", "file": "checklist_arenda.pdf"},
+        2: {"name": "Памятка", "file": "pamyatka_arendator.pdf"}
+    }
+},
     "docs": {
         "name": "📄 Документы",
         "items": {
@@ -149,9 +250,35 @@ FREE_DOCS = {
 }
 
 # ============================================
+# ОБРАБОТЧИК КЕЙСОВ
+# ============================================
+@dp.callback_query(lambda c: c.data.startswith("case_"))
+async def handle_case(callback: CallbackQuery):
+    case_id = int(callback.data.split("_")[1])
+    case = cases_db.get(case_id)
+    
+    if not case:
+        await callback.answer("Кейс не найден", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    # Формируем текст кейса
+    case_text = (
+        f"📂 **{case['title']}**\n\n"
+        f"📅 **Дата:** {case['date']}\n"
+        f"📌 **Категория:** {case['category']}\n\n"
+        f"**Ситуация:**\n{case['situation']}\n\n"
+        f"**Вопрос:**\n{case['question']}\n\n"
+        f"**Решение:**\n{case['solution']}\n\n"
+        f"**Результат:**\n{case['result']}"
+    )
+    
+    await callback.message.answer(case_text)
+
+# ============================================
 # ДАННЫЕ ДЛЯ КЕЙСОВ
 # ============================================
-
 cases_db = {
     1: {
         "title": "Счётчик тепла (ОДПУ) — кто платит за ремонт?",
@@ -246,7 +373,6 @@ cases_db = {
 # ============================================
 # СТАТЬИ ДЛЯ DEEP LINKING
 # ============================================
-
 DEEP_ARTICLES = {
     "flood": """🏠 **Последствия залива квартиры: что делать и кто виноват?**
 
@@ -325,7 +451,6 @@ DEEP_ARTICLES = {
 # ============================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ============================================
-
 def is_admin(user_id: int) -> bool:
     return user_id == config['ADMIN_ID']
 
@@ -341,7 +466,6 @@ def admin_only(func):
 # ============================================
 # КЛАВИАТУРЫ
 # ============================================
-
 def get_main_keyboard():
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📋 Кейсы", callback_data="menu_cases")],
@@ -359,16 +483,7 @@ def get_shop_keyboard():
     builder.button(text="◀️ Назад", callback_data="back_to_main")
     builder.adjust(1)
     return builder.as_markup()
-
-def get_category_keyboard(cat_key):
-    items = FREE_DOCS.get(cat_key, {}).get("items", {})
-    builder = InlineKeyboardBuilder()
-    for item_id, item_data in items.items():
-        builder.button(text=item_data["name"], callback_data=f"free_{cat_key}_{item_id}")
-    builder.button(text="◀️ Назад", callback_data="back_to_main")
-    builder.adjust(1)
-    return builder.as_markup()
-
+    
 def get_free_categories_keyboard():
     builder = InlineKeyboardBuilder()
     for cat_key, cat_data in FREE_DOCS.items():
@@ -420,24 +535,12 @@ def get_admin_keyboard():
 # ============================================
 # ФУНКЦИЯ ДЛЯ ОТПРАВКИ ПРИВЕТСТВИЯ
 # ============================================
-
 async def send_welcome_post(message: Message, source: str = "send_welcome_post"):
     call_id = str(uuid.uuid4())[:8]
     caller_frame = inspect.currentframe().f_back
     caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
     
     logger.info(f"🔴 Функция send_welcome_post ВЫЗВАНА. ID: {call_id}, Источник: {source}, Вызвана из: {caller_name}, Пользователь: {message.from_user.id}")
-    
-    photo_path = os.path.join("images", "max_full.jpg")
-    if os.path.exists(photo_path):
-        try:
-            photo = FSInputFile(photo_path)
-            await message.answer_photo(photo)
-            logger.info(f"📸 Фото отправлено. ID: {call_id}")
-        except Exception as e:
-            logger.error(f"❌ Ошибка фото в welcome post: {e}")
-    else:
-        logger.warning(f"⚠️ Фото {photo_path} не найдено, отправляю только текст")
     
     text = (
         "👋 Добро пожаловать!\n\n"
@@ -452,7 +555,7 @@ async def send_welcome_post(message: Message, source: str = "send_welcome_post")
     logger.info(f"✅ Текст отправлен. ID: {call_id}")
 
 # ============================================
-# DEEP LINKING
+# DEEP LINKING — переход по ссылке с параметром
 # ============================================
 
 @dp.message(CommandStart(deep_link=True))
@@ -467,47 +570,40 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
             article = await db.get_article(article_id)
             
             if article:
-                await message.answer(
-                    "👋 Вы находитесь в чат-боте юриста Эдуарда Секриера\n\n"
-                    "Здесь вы можете получить полный разбор темы, скачать документы или задать вопрос."
+                # Получаем данные из БД
+                teaser_title = article.get('teaser_title', 'Статья')
+                full_text = article.get('full_text', '')
+                
+                # Формируем сообщение для бота (без ссылки в тексте)
+                bot_text = (
+                    f"📌 **ПОЛНЫЙ ПОСТ СО ССЫЛКАМИ НА НОРМАТИВНЫЕ АКТЫ**\n\n"
+                    f"**На тему:** {teaser_title}\n\n"
+                    f"{full_text}"
                 )
                 
-                photo_path = os.path.join("images", "max_full.jpg")
-                if os.path.exists(photo_path):
-                    try:
-                        photo = FSInputFile(photo_path)
-                        await message.answer_photo(photo, caption="📊 Штрафы для УК — до 300 000 ₽")
-                    except Exception as e:
-                        logger.error(f"Error sending photo: {e}")
-                
-                article_title = article['full_text'].split('\n')[0][:50] + "..." if len(article['full_text'].split('\n')[0]) > 50 else article['full_text'].split('\n')[0]
-                
+                # Кнопка возврата
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [
-                        InlineKeyboardButton(text="📥 Скачать документ", callback_data=f"download_{article_id}"),
-                        InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main"),
-                        InlineKeyboardButton(text="❓ Консультация", callback_data="menu_consult")
-                    ]
+                    [InlineKeyboardButton(text="🏠 ВЕРНУТЬСЯ В ГЛАВНОЕ МЕНЮ", callback_data="back_to_main")]
                 ])
                 
-                await message.answer(
-                    f"📄 {article_title}\n\n{article['full_text']}",
-                    reply_markup=keyboard
-                )
+                await message.answer(bot_text, parse_mode="HTML", reply_markup=keyboard)
+                
             else:
                 await message.answer("❌ Статья не найдена или была удалена.")
+                
         except ValueError:
             await message.answer("❌ Неверная ссылка на статью.")
         except Exception as e:
             logger.error(f"Error in deep link processing: {e}")
             await message.answer("❌ Произошла ошибка при загрузке статьи.")
+    
     elif args == 'consult':
         await cmd_consult(message)
     else:
         await cmd_start(message)
 
 # ============================================
-# КОМАНДА /start
+# КОМАНДА /start (обычный)
 # ============================================
 
 @dp.message(Command("start"))
@@ -531,7 +627,6 @@ async def cmd_start(message: Message, state: FSMContext = None):
 # ============================================
 # КОМАНДА /admin
 # ============================================
-
 @dp.message(Command("admin"))
 async def cmd_admin(message: Message):
     if message.from_user.id != config['ADMIN_ID']:
@@ -546,7 +641,6 @@ async def cmd_admin(message: Message):
 # ============================================
 # КОМАНДА /help
 # ============================================
-
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     help_text = (
@@ -569,6 +663,8 @@ async def cmd_help(message: Message):
         help_text += (
             "🔰 Для администратора:\n"
             "/admin - Войти в панель управления\n"
+            "/test_channel - Проверить доступ к каналу\n"
+            "/check_photo - Проверить наличие фото\n"
             "/add_article - Добавить статью\n"
             "/list_articles - Список статей\n"
             "/del_article [ID] - Удалить статью\n"
@@ -581,35 +677,33 @@ async def cmd_help(message: Message):
             "/clear_limits - Сбросить лимиты сообщений\n"
         )
     
-    await message.answer(help_text)  # Убрал parse_mode
+    await message.answer(help_text)
     logger.info(f"User {message.from_user.id} requested help")
 
 # ============================================
 # КОМАНДА /calculator
 # ============================================
-
 @dp.message(Command("calculator"))
 async def cmd_calculator(message: Message):
     text = (
         "🧮 **Калькулятор ЖКХ**\n\n"
-        "⚙️ **Проект в работе**\n\n"
-        "Сейчас мы дорабатываем калькулятор, чтобы он был максимально точным и полезным для вас.\n\n"
-        "🔜 **Что появится:**\n"
+        "✅ **Калькулятор готов к работе!**\n\n"
+        "Теперь вы можете рассчитать плату за ЖКУ по актуальным тарифам:\n\n"
+        "👉 https://jkh-calculator-hrzuucss2p44fwj5bjeappd.streamlit.app\n\n"
+        "**Что доступно:**\n"
         "• Актуальные тарифы по Геленджику и Пыть-Яху\n"
         "• Расчёт воды, электричества, отопления и ТКО\n"
         "• Сравнение с нормативами\n"
         "• Персональные рекомендации\n\n"
-        "✨ **Следите за обновлениями в канале!**\n"
-        "Как только калькулятор будет готов — я сразу сообщу.\n\n"
-        "А пока вы можете воспользоваться готовыми памятками и инструкциями в других разделах бота."
+        "✨ **Переходите по ссылке и пробуйте!**\n\n"
+        "Если у вас возникнут вопросы или предложения — пишите /consult"
     )
     await message.answer(text)
-    logger.info(f"User {message.from_user.id} used /calculator (work in progress)")
+    logger.info(f"User {message.from_user.id} used /calculator (ready)")
 
 # ============================================
 # КОМАНДА /calculate
 # ============================================
-
 @dp.message(Command("calculate"))
 async def cmd_calculate(message: Message):
     await cmd_calculator(message)
@@ -617,7 +711,6 @@ async def cmd_calculate(message: Message):
 # ============================================
 # КОМАНДА /clear_limits
 # ============================================
-
 @dp.message(Command("clear_limits"))
 @admin_only
 async def cmd_clear_limits(message: Message, **kwargs):
@@ -629,7 +722,6 @@ async def cmd_clear_limits(message: Message, **kwargs):
 # ============================================
 # КОМАНДА /shop
 # ============================================
-
 @dp.message(Command("shop"))
 async def cmd_shop(message: Message):
     text = "🛒 **МАГАЗИН ДОГОВОРОВ**\n\nВыберите договор:"
@@ -638,7 +730,6 @@ async def cmd_shop(message: Message):
 # ============================================
 # КОМАНДА /free
 # ============================================
-
 @dp.message(Command("free"))
 async def cmd_free(message: Message):
     text = "📚 **БЕСПЛАТНЫЕ ДОКУМЕНТЫ**\n\nВыберите категорию:"
@@ -647,7 +738,6 @@ async def cmd_free(message: Message):
 # ============================================
 # КОМАНДА /cases
 # ============================================
-
 @dp.message(Command("cases"))
 async def cmd_cases(message: Message):
     keyboard = get_cases_keyboard()
@@ -670,13 +760,15 @@ async def cmd_consult(message: Message):
 # ============================================
 
 class ArticleStates(StatesGroup):
-    waiting_for_text = State()
-    waiting_for_time = State()
+    full_text = State()      # полный текст для бота
+    teaser_title = State()   # заголовок тизера
+    teaser_text = State()    # короткий текст тизера
+    photo = State()          # фото
+    time = State()           # дата публикации
 
 # ============================================
 # АДМИН-КОМАНДЫ (через кнопки)
 # ============================================
-
 @dp.callback_query(lambda c: c.data == "admin_add_article")
 async def admin_add_article(callback: CallbackQuery, state: FSMContext):
     if callback.from_user.id != config['ADMIN_ID']:
@@ -761,57 +853,136 @@ async def admin_exit(callback: CallbackQuery, state: FSMContext = None):
     )
 
 # ============================================
-# АДМИН-КОМАНДЫ (ввод)
+# КОМАНДЫ ДЛЯ РАБОТЫ СО СТАТЬЯМИ
 # ============================================
 
 @dp.message(Command("add_article"))
 @admin_only
 async def cmd_add_article(message: Message, state: FSMContext, **kwargs):
     await message.answer(
-        "📝 Добавление новой статьи\n\n"
-        "Отправьте полный текст статьи:"
+        "📝 **Добавление новой статьи**\n\n"
+        "**Шаг 1 из 5:** Отправьте ПОЛНЫЙ текст статьи (для бота):"
     )
-    await state.set_state(ArticleStates.waiting_for_text)
+    await state.set_state(ArticleStates.full_text)
 
-@dp.message(ArticleStates.waiting_for_text)
-async def process_article_text(message: Message, state: FSMContext):
+@dp.message(ArticleStates.full_text)
+async def process_full_text(message: Message, state: FSMContext):
     if not message.text:
-        await message.answer("❌ Пожалуйста, отправьте текст статьи.")
+        await message.answer("❌ Пожалуйста, отправьте текст.")
         return
-    await state.update_data(article_text=message.text)
+    await state.update_data(full_text=message.text)
+    
+    await message.answer(
+        "📝 **Шаг 2 из 5:** Введите ЗАГОЛОВОК тизера (для канала):"
+    )
+    await state.set_state(ArticleStates.teaser_title)
+
+@dp.message(ArticleStates.teaser_title)
+async def process_teaser_title(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Пожалуйста, отправьте заголовок.")
+        return
+    await state.update_data(teaser_title=message.text.strip())
+    
+    await message.answer(
+        "📝 **Шаг 3 из 5:** Введите ТИЗЕР (короткий текст для канала):"
+    )
+    await state.set_state(ArticleStates.teaser_text)
+
+@dp.message(ArticleStates.teaser_text)
+async def process_teaser_text(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Пожалуйста, отправьте текст тизера.")
+        return
+    await state.update_data(teaser_text=message.text.strip())
+    
+    await message.answer(
+        "📸 **Шаг 4 из 5:** Отправьте ФОТО для тизера\n\n"
+        "Фото будет прикреплено к посту в канале\n\n"
+        "Если не хотите добавлять фото — отправьте слово **пропустить**"
+    )
+    await state.set_state(ArticleStates.photo)
+
+@dp.message(ArticleStates.photo)
+async def process_article_photo(message: Message, state: FSMContext):
+    # Обработка фото
+    if message.photo:
+        photo_file_id = message.photo[-1].file_id
+        await state.update_data(photo_file_id=photo_file_id)
+        await message.answer("✅ Фото сохранено")
+    else:
+        # Проверяем, хочет ли пользователь пропустить фото
+        if message.text and message.text.lower() in ['пропустить', 'skip', 'нет']:
+            await state.update_data(photo_file_id=None)
+            await message.answer("⚠️ Фото не добавлено. Продолжаем без фото.")
+        else:
+            # Если отправлен непонятный текст — просим фото или команду пропуска
+            await message.answer(
+                "❓ Непонятно. Отправьте ФОТО или напишите **пропустить**\n\n"
+                "Фото: отправьте изображение\n"
+                "Пропустить: напишите слово **пропустить**"
+            )
+            return
+    
+    # Переход к шагу 5 (только один раз)
+    await state.set_state(ArticleStates.time)
+    
     example = datetime.now() + timedelta(hours=1)
     example_str = example.strftime("%d.%m.%Y %H:%M")
     await message.answer(
-        "📅 Укажите дату и время публикации тизера\n\n"
+        "📅 **Шаг 5 из 5:** Укажите дату и время публикации тизера\n\n"
         f"Формат: ДД.ММ.ГГГГ ЧЧ:ММ\n"
         f"Например: {example_str}\n\n"
         "🕐 Время указывается МСК"
     )
-    await state.set_state(ArticleStates.waiting_for_time)
 
-@dp.message(ArticleStates.waiting_for_time)
+@dp.message(ArticleStates.time)
 async def process_article_time(message: Message, state: FSMContext):
     try:
-        publish_time = datetime.strptime(message.text.strip(), "%d.%m.%Y %H:%M")
-        if publish_time < datetime.now():
-            await message.answer("❌ Нельзя указать время в прошлом.")
-            return
-        data = await state.get_data()
-        article_text = data['article_text']
+        msk_time = datetime.strptime(message.text.strip(), "%d.%m.%Y %H:%M")
+        now_msk = datetime.utcnow() + timedelta(hours=3)
         
-        article_id = await db.add_article(article_text, publish_time)
+        if msk_time < now_msk:
+            await message.answer(
+                f"❌ Нельзя указать время в прошлом!\n"
+                f"Текущее время МСК: {now_msk.strftime('%d.%m.%Y %H:%M')}\n"
+                f"Вы указали: {msk_time.strftime('%d.%m.%Y %H:%M')}"
+            )
+            return
+        
+        data = await state.get_data()
+        
+        # Сохраняем статью в БД
+        article_id = await db.add_article(
+            full_text=data['full_text'],
+            teaser_title=data['teaser_title'],
+            teaser_text=data['teaser_text'],
+            publish_time=msk_time,
+            photo_file_id=data.get('photo_file_id')
+        )
+        
+        # Генерируем deep link
         deep_link = f"@uriskonsult_bot?start=article_{article_id}"
         
-        await message.answer(
-            f"✅ **Статья #{article_id} добавлена!**\n\n"
-            f"🔗 **Ссылка для тизера:**\n"
-            f"{deep_link}\n\n"
-            f"📅 Публикация тизера запланирована на {publish_time.strftime('%d.%m.%Y %H:%M')} МСК."
-        )
+        response = f"✅ **Статья #{article_id} добавлена!**\n\n"
+        response += f"📌 Заголовок: {data['teaser_title']}\n"
+        response += f"📅 Публикация: {msk_time.strftime('%d.%m.%Y %H:%M')} МСК.\n"
+        response += f"🔗 Ссылка: {deep_link}\n"
+        
+        if data.get('photo_file_id'):
+            response += f"\n📸 Фото сохранено"
+        else:
+            response += f"\n⚠️ Статья без фото"
+        
+        await message.answer(response)
         await state.clear()
+        
     except ValueError:
-        await message.answer("❌ Неверный формат даты!")
-        return
+        await message.answer("❌ Неверный формат! Используйте ДД.ММ.ГГГГ ЧЧ:ММ")
+
+# ============================================
+# КОМАНДЫ СПИСКА, УДАЛЕНИЯ, РЕДАКТИРОВАНИЯ
+# ============================================
 
 @dp.message(Command("list_articles"))
 @admin_only
@@ -824,7 +995,8 @@ async def cmd_list_articles(message: Message, **kwargs):
     for article in articles[:10]:
         deep_link = f"@uriskonsult_bot?start=article_{article['id']}"
         response += f"🔹 **ID {article['id']}**\n"
-        response += f"📝 {article['full_text'][:50]}...\n"
+        response += f"📌 Заголовок: {article.get('teaser_title', 'Без заголовка')}\n"
+        response += f"📝 {article.get('full_text', '')[:50]}...\n"
         response += f"🔗 {deep_link}\n\n"
     await message.answer(response)
 
@@ -848,32 +1020,22 @@ async def cmd_edit_article(message: Message, **kwargs):
     await message.answer("✏️ Редактирование пока в разработке.")
 
 # ============================================
-# КОМАНДЫ СТАТУСА (для тестовой БД)
+# КОМАНДЫ СТАТУСА
 # ============================================
 
 @dp.message(Command("status", "stats"))
 @admin_only
 async def cmd_status(message: Message, **kwargs):
-    # Получаем статьи из тестовой БД
     articles = await db.get_articles_list()
     total_users = len(user_message_counts)
     total_messages = sum(user_message_counts.values())
-    
-    # Для тестовой БД используем заглушку статистики
     stats = await db.get_scheduler_stats()
     
-    # Ищем статью #6 в списке статей
-    post_6 = None
-    for article in articles:
-        if article['id'] == 6:
-            post_6 = article
-            break
-    
     text = (
-        f"📊 **Статус системы (ТЕСТОВЫЙ РЕЖИМ)**\n\n"
+        f"📊 **Статус системы**\n\n"
         f"📚 **Статьи в памяти:**\n"
         f"• Всего статей: {len(articles)}\n\n"
-        f"⏳ **Планировщик (тестовый):**\n"
+        f"⏳ **Планировщик:**\n"
         f"• Ожидают публикации: {stats['pending']}\n"
         f"• Уже опубликовано: {stats['published']}\n"
         f"• Ошибок: {stats['failed']}\n\n"
@@ -882,44 +1044,35 @@ async def cmd_status(message: Message, **kwargs):
         f"• Всего сообщений: {total_messages}\n\n"
     )
     
-    if post_6:
-        text += (
-            f"🔍 **Статья #6 найдена:**\n"
-            f"• ID: {post_6['id']}\n"
-            f"• Текст: {post_6['full_text'][:50]}...\n"
-            f"• Время публикации: {post_6.get('teaser_time', 'не указано')}\n"
-        )
-    else:
-        text += f"🔍 **Статья #6 не найдена**\n\n"
-    
     if articles:
         text += f"📋 **Все статьи:**\n"
         for article in articles:
             text += f"• ID {article['id']}: {article['full_text'][:30]}...\n"
-    else:
-        text += f"📭 Статей пока нет"
     
     await message.answer(text)
-    logger.info(f"Admin {message.from_user.id} requested status (test DB)")
+    logger.info(f"Admin {message.from_user.id} requested status")
 
 # ============================================
 # ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ КАНАЛА
 # ============================================
-
 @dp.message(Command("test_channel"))
 @admin_only
-async def cmd_test_channel(message: Message):
-    """Проверяет, может ли бот писать в канал"""
+async def cmd_test_channel(message: Message, **kwargs):
     try:
+        print(f"🔍 ОТЛАДКА: config['CHANNEL_ID'] = {config['CHANNEL_ID']} (тип: {type(config['CHANNEL_ID']).__name__})")
+        logger.info(f"🔍 ОТЛАДКА: config['CHANNEL_ID'] = {config['CHANNEL_ID']} (тип: {type(config['CHANNEL_ID']).__name__})")
+        
         channel = config['CHANNEL_ID']
         
-        # Правильная обработка ID канала
         if str(channel).startswith('-100'):
             channel_id = int(channel)
             channel_type = "числовой ID"
         else:
             channel_id = "@" + channel
             channel_type = "username"
+        
+        print(f"🔍 ОТЛАДКА: channel_id = {channel_id} (тип: {type(channel_id).__name__})")
+        logger.info(f"🔍 ОТЛАДКА: channel_id = {channel_id} (тип: {type(channel_id).__name__})")
         
         test_text = (
             f"🧪 **Тестовое сообщение**\n\n"
@@ -933,16 +1086,16 @@ async def cmd_test_channel(message: Message):
         
     except Exception as e:
         error_msg = f"❌ Ошибка: {type(e).__name__}: {e}"
+        print(f"🔴 ОШИБКА: {error_msg}")
         logger.error(error_msg)
         await message.answer(error_msg)
 
 # ============================================
 # КОМАНДА /republish
 # ============================================
-
 @dp.message(Command("republish"))
 @admin_only
-async def cmd_republish(message: Message):
+async def cmd_republish(message: Message, **kwargs):
     try:
         parts = message.text.split()
         if len(parts) != 2:
@@ -958,13 +1111,13 @@ async def cmd_republish(message: Message):
             await message.answer(f"❌ Статья с ID {article_id} не найдена.")
             return
         teaser_text = (
-            f"{article['full_text'][:config['TEASER_LENGTH']]}...\n\n"
-            f"<b>🔗 ПОЛНЫЙ РАЗБОР НОВЫХ ПРАВИЛ</b>\n"
+            f"{article['full_text'][:config.get('TEASER_LENGTH', 200)]}...\n\n"
+            f"<b>🔗 ПОЛНЫЙ РАЗБОР</b>\n"
             f"➡️ @uriskonsult_bot?start=article_{article_id}\n\n"
             f"👨‍⚖️ <b>Нужна консультация?</b>\n"
             f"➡️ /consult"
         )
-        # ПРАВИЛЬНАЯ обработка ID канала
+        
         if str(config['CHANNEL_ID']).startswith('-100'):
             channel = int(config['CHANNEL_ID'])
         else:
@@ -979,10 +1132,9 @@ async def cmd_republish(message: Message):
 # ============================================
 # КОМАНДА /republish_deep
 # ============================================
-
 @dp.message(Command("republish_deep"))
 @admin_only
-async def cmd_republish_deep(message: Message):
+async def cmd_republish_deep(message: Message, **kwargs):
     try:
         parts = message.text.split()
         if len(parts) != 2:
@@ -1005,7 +1157,7 @@ async def cmd_republish_deep(message: Message):
             return
         
         full_text = DEEP_ARTICLES[key]
-        teaser_length = min(config['TEASER_LENGTH'], 300)
+        teaser_length = min(config.get('TEASER_LENGTH', 200), 300)
         teaser_text = full_text[:teaser_length] + "...\n\n"
         teaser_text += (
             f"🔗 ЧИТАТЬ ПОЛНОСТЬЮ\n"
@@ -1014,7 +1166,6 @@ async def cmd_republish_deep(message: Message):
             f"➡️ /consult"
         )
         
-        # ПРАВИЛЬНАЯ обработка ID канала
         if str(config['CHANNEL_ID']).startswith('-100'):
             channel = int(config['CHANNEL_ID'])
         else:
@@ -1030,10 +1181,9 @@ async def cmd_republish_deep(message: Message):
 # ============================================
 # КОМАНДА /old_posts
 # ============================================
-
 @dp.message(Command("old_posts"))
 @admin_only
-async def cmd_old_posts(message: Message):
+async def cmd_old_posts(message: Message, **kwargs):
     try:
         articles = await db.get_articles_list()
         old_posts = []
@@ -1058,36 +1208,6 @@ async def cmd_old_posts(message: Message):
     except Exception as e:
         logger.error(f"Error in old_posts: {e}")
         await message.answer(f"❌ Ошибка: {e}")
-
-# ============================================
-# КОМАНДА /check_post (диагностика)
-# ============================================
-
-@dp.message(Command("check_post"))
-@admin_only
-async def cmd_check_post(message: Message, **kwargs):
-    async with db.pool.acquire() as conn:
-        posts = await conn.fetch("""
-            SELECT * FROM scheduled_posts 
-            WHERE article_id = 5
-            ORDER BY id
-        """)
-        
-        if not posts:
-            await message.answer("❌ Для статьи 5 нет запланированных постов")
-            return
-        
-        text = f"📊 **Посты для статьи 5:**\n\n"
-        for p in posts:
-            text += f"ID поста: {p['id']}\n"
-            text += f"Тип: {p['post_type']}\n"
-            text += f"Время: {p['scheduled_time']}\n"
-            text += f"Статус: {p['status']}\n"
-            if p['fail_reason']:
-                text += f"❌ Ошибка: {p['fail_reason']}\n"
-            text += "-" * 20 + "\n"
-        
-        await message.answer(text)
 
 # ============================================
 # ОБРАБОТЧИКИ КНОПОК
@@ -1120,399 +1240,331 @@ async def menu_help(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "back_to_main")
 async def back_to_main(callback: CallbackQuery):
-    await cmd_start(callback.message)
+    text = (
+        "📌 Чтобы продолжить, выберите нужный раздел в меню "
+        "и получите готовые инструкции, памятки или шаблоны документов👇"
+    )
+    await callback.message.answer(
+        text,
+        reply_markup=get_main_keyboard()
+    )
     await callback.answer()
 
-@dp.callback_query(lambda c: c.data == "other_articles")
-async def other_articles_handler(callback: CallbackQuery):
+# ============================================
+# ОБРАБОТЧИК КАТЕГОРИЙ БЕСПЛАТНЫХ ДОКУМЕНТОВ
+# ============================================
+@dp.callback_query(lambda c: c.data.startswith("cat_"))
+async def handle_category(callback: CallbackQuery):
+    category_key = callback.data.replace("cat_", "")
+    category = FREE_DOCS.get(category_key)
+    
+    if not category:
+        await callback.answer("Категория не найдена", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    builder = InlineKeyboardBuilder()
+    for doc_id, doc in category["items"].items():
+        builder.button(
+            text=doc["name"],
+            callback_data=f"doc_{category_key}_{doc_id}"
+        )
+    builder.button(text="◀️ Назад", callback_data="back_to_free")
+    builder.adjust(1)
+    
+    await callback.message.answer(
+        f"📁 **{category['name']}**\n\nВыберите документ:",
+        reply_markup=builder.as_markup()
+    )
+
+# ============================================
+# ОБРАБОТЧИК ВЫБОРА ДОКУМЕНТА
+# ============================================
+@dp.callback_query(lambda c: c.data.startswith("doc_"))
+async def handle_document(callback: CallbackQuery):
+    parts = callback.data.split("_")
+    if len(parts) < 3:
+        await callback.answer("Ошибка", show_alert=True)
+        return
+    
+    category_key = parts[1]
+    doc_id = int(parts[2])
+    
+    category = FREE_DOCS.get(category_key)
+    if not category or doc_id not in category["items"]:
+        await callback.answer("Документ не найден", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    doc = category["items"][doc_id]
+    file_path = os.path.join("files", doc["file"])
+    
+    # ДИАГНОСТИКА
+    print(f"🔴 Ищем файл: {file_path}")
+    print(f"🔴 Текущая директория: {os.getcwd()}")
+    print(f"🔴 Содержимое папки files: {os.listdir('files') if os.path.exists('files') else 'папка не найдена'}")
+    
+    if os.path.exists(file_path):
+        try:
+            document = FSInputFile(file_path)
+            await callback.message.answer_document(
+                document,
+                caption=f"📄 **{doc['name']}**\n\nФайл готов к скачиванию."
+            )
+        except Exception as e:
+            logger.error(f"Ошибка отправки файла: {e}")
+            await callback.message.answer("❌ Ошибка при отправке файла.")
+    else:
+        await callback.message.answer(f"❌ Файл не найден: {doc['file']}")
+
+# ============================================
+# ОБРАБОТЧИК НАЗАД К КАТЕГОРИЯМ
+# ============================================
+@dp.callback_query(lambda c: c.data == "back_to_free")
+async def back_to_free(callback: CallbackQuery):
+    await callback.answer()
     await cmd_free(callback.message)
-    await callback.answer()
 
+# ============================================
+# ОБРАБОТЧИК МАГАЗИНА ДОГОВОРОВ
+# ============================================
+
+class ContractStates(StatesGroup):
+    waiting_for_phone = State()
+    waiting_for_comment = State()
+
+@dp.callback_query(lambda c: c.data.startswith("contract_"))
+async def handle_contract(callback: CallbackQuery, state: FSMContext = None):
+    contract_id = int(callback.data.split("_")[1])
+    contract = CONTRACTS.get(contract_id)
+    
+    if not contract:
+        await callback.answer("Договор не найден", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    # Кнопки для связи
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📞 Оставить заявку", callback_data=f"request_contract_{contract_id}")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_shop")]
+    ])
+    
+    await callback.message.answer(
+        f"📄 **{contract['name']}**\n\n"
+        f"{contract['description']}\n\n"
+        f"💰 **Цена:** {contract['price']} ₽\n\n"
+        f"Для получения договора нажмите кнопку ниже.\n"
+        f"Мы свяжемся с вами для уточнения деталей.",
+        reply_markup=keyboard
+    )
+
+@dp.callback_query(lambda c: c.data.startswith("request_contract_"))
+async def request_contract(callback: CallbackQuery, state: FSMContext):
+    contract_id = int(callback.data.split("_")[2])
+    contract = CONTRACTS.get(contract_id)
+    
+    if not contract:
+        await callback.answer("Договор не найден", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    # Сохраняем ID договора в состоянии
+    await state.update_data(contract_id=contract_id)
+    await state.set_state(ContractStates.waiting_for_phone)
+    
+    await callback.message.answer(
+        f"📞 Для получения договора **{contract['name']}**\n\n"
+        f"**Шаг 1 из 2:** Отправьте ваш номер телефона в формате:\n"
+        f"`+7 123 456-78-90` или `8 123 456-78-90`",
+        parse_mode="Markdown"
+    )
+
+@dp.message(ContractStates.waiting_for_phone)
+async def process_contract_phone(message: Message, state: FSMContext):
+    phone = message.text.strip()
+    
+    # Простая валидация номера телефона
+    import re
+    phone_pattern = re.compile(r'^(\+7|8)?[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$')
+    
+    if not phone_pattern.search(phone):
+        await message.answer(
+            "❌ Неверный формат номера.\n\n"
+            "Пожалуйста, отправьте номер в формате:\n"
+            "`+7 123 456-78-90` или `8 123 456-78-90`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    await state.update_data(phone=phone)
+    await state.set_state(ContractStates.waiting_for_comment)
+    
+    await message.answer(
+        "📝 **Шаг 2 из 2:** Напишите комментарий к заявке\n\n"
+        "Например:\n"
+        "• Какой объект сдаёте\n"
+        "• Сколько квартир в управлении\n"
+        "• Дополнительные пожелания\n\n"
+        "Если комментарий не нужен — отправьте слово **нет**"
+    )
+
+@dp.message(ContractStates.waiting_for_comment)
+async def process_contract_comment(message: Message, state: FSMContext):
+    comment = message.text.strip()
+    
+    # Если комментарий "нет" — оставляем пустым
+    if comment.lower() in ['нет', 'skip', 'пропустить', '-']:
+        comment = "Без комментария"
+    
+    data = await state.get_data()
+    contract_id = data.get('contract_id')
+    phone = data.get('phone')
+    contract = CONTRACTS.get(contract_id)
+    
+    # Отправляем уведомление администратору
+    admin_id = config.get('ADMIN_ID')
+    if admin_id:
+        try:
+            await bot.send_message(
+                chat_id=admin_id,
+                text=(
+                    f"🔔 **НОВЫЙ ЗАПРОС НА ДОГОВОР**\n\n"
+                    f"📄 **Договор:** {contract['name']}\n"
+                    f"💰 **Цена:** {contract['price']} ₽\n"
+                    f"📞 **Телефон:** `{phone}`\n"
+                    f"💬 **Комментарий:**\n_{comment[:500]}_\n\n"
+                    f"👤 **Пользователь:** @{message.from_user.username or message.from_user.first_name}\n"
+                    f"🆔 **ID:** {message.from_user.id}"
+                ),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка отправки уведомления админу: {e}")
+    
+    # Сохраняем заявку в БД (опционально)
+    # await db.save_contract_request(contract_id, phone, comment, message.from_user.id)
+    
+    await message.answer(
+        f"✅ **Спасибо!**\n\n"
+        f"Ваша заявка на договор **{contract['name']}** получена.\n\n"
+        f"📞 Мы свяжемся с вами по номеру `{phone}` в ближайшее время.\n\n"
+        f"📌 Если не дозвонились, напишите нам: /consult",
+        parse_mode="Markdown"
+    )
+    
+    await state.clear()
+
+@dp.callback_query(lambda c: c.data == "back_to_shop")
+async def back_to_shop(callback: CallbackQuery):
+    await callback.answer()
+    await cmd_shop(callback.message)
+
+# ============================================
+# ОБРАБОТЧИК КОНСУЛЬТАЦИИ
+# ============================================
 @dp.callback_query(lambda c: c.data == "consultation")
 async def consultation_handler(callback: CallbackQuery):
     await cmd_consult(callback.message)
     await callback.answer()
 
 # ============================================
-# СОСТОЯНИЯ ДЛЯ КОНСУЛЬТАЦИИ
+# ОБРАБОТЧИКИ КОНСУЛЬТАЦИИ (ПРОСТАЯ ВЕРСИЯ)
 # ============================================
 
 class ConsultStates(StatesGroup):
     waiting_for_text = State()
     waiting_for_voice = State()
 
-# ============================================
-# ОБРАБОТЧИКИ КОНСУЛЬТАЦИИ
-# ============================================
-
 @dp.callback_query(lambda c: c.data == "consult_write")
-async def consult_write_handler(callback: CallbackQuery, state: FSMContext):
-    user_id = callback.from_user.id
-    
-    if not check_message_limit(user_id):
-        await callback.message.answer(
-            "❌ Вы исчерпали лимит сообщений на сегодня (3 сообщения в сутки).\n"
-            "Попробуйте завтра или свяжитесь с @SekrierEI напрямую."
-        )
-        await callback.answer()
-        return
-    
-    await callback.message.edit_text(
-        "✍️ Напишите ваш вопрос подробно",
-        reply_markup=get_consult_back_keyboard()
-    )
-    await state.set_state(ConsultStates.waiting_for_text)
+async def consult_write(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
+    await state.set_state(ConsultStates.waiting_for_text)
+    await callback.message.answer(
+        "✍️ **Напишите ваш вопрос**\n\n"
+        "Опишите ситуацию. Я отвечу в ближайшее время.\n\n"
+        "📌 Отмена: /cancel"
+    )
 
 @dp.callback_query(lambda c: c.data == "consult_speak")
-async def consult_speak_handler(callback: CallbackQuery, state: FSMContext):
-    user_id = callback.from_user.id
-    
-    if not check_message_limit(user_id):
-        await callback.message.answer(
-            "❌ Вы исчерпали лимит сообщений на сегодня (3 сообщения в сутки).\n"
-            "Попробуйте завтра или свяжитесь с @SekrierEI напрямую."
-        )
-        await callback.answer()
-        return
-    
-    await callback.message.edit_text(
-        "🎤 Отправьте голосовое сообщение",
-        reply_markup=get_consult_back_keyboard()
-    )
+async def consult_speak(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
     await state.set_state(ConsultStates.waiting_for_voice)
-    await callback.answer()
-
-@dp.callback_query(lambda c: c.data == "consult_back")
-async def consult_back_handler(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await callback.message.edit_text(
-        "👨‍⚖️ Запись на консультацию\n\nВыберите способ обращения:",
-        reply_markup=get_consult_main_keyboard()
+    await callback.message.answer(
+        "🎤 **Отправьте голосовое сообщение**\n\n"
+        "Я прослушаю и отвечу.\n\n"
+        "📌 Отмена: /cancel"
     )
-    await callback.answer()
-
-# ============================================
-# ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ
-# ============================================
 
 @dp.message(ConsultStates.waiting_for_text)
-async def process_text_consult(message: Message, state: FSMContext):
-    user_id = message.from_user.id
-    
-    if not check_message_limit(user_id):
-        await message.answer("❌ Вы исчерпали лимит сообщений на сегодня (3 сообщения в сутки).")
-        await state.clear()
+async def process_consult_text(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Отправьте текст вопроса.")
         return
     
-    if len(message.text) < 10:
-        await message.answer("❌ Слишком короткий вопрос. Опишите ситуацию подробнее (минимум 10 символов).")
-        return
-    
-    user_message_counts[user_id] += 1
-    remaining = 3 - user_message_counts[user_id]
-    
-    admin_text = (
-        f"📩 **ПИСЬМЕННЫЙ ВОПРОС**\n\n"
-        f"**От:** @{message.from_user.username or 'нет username'}\n"
-        f"**ID:** `{user_id}`\n"
-        f"**Имя:** {message.from_user.full_name}\n"
-        f"**Осталось сегодня:** {user_message_counts[user_id]}/3\n\n"
-        f"**Вопрос:**\n{message.text}"
-    )
-    
-    try:
-        await bot.send_message(config['ADMIN_ID'], admin_text)
-        await message.answer(
-            f"✅ Ваш вопрос передан Эдуарду Ивановичу.\n"
-            f"Он свяжется с вами в ближайшее время.\n\n"
-            f"📊 Осталось сообщений сегодня: {remaining}/3",
-            reply_markup=get_consult_main_keyboard()
+    # Отправляем админу
+    admin_id = config.get('ADMIN_ID')
+    if admin_id:
+        await bot.send_message(
+            admin_id,
+            f"✍️ **ВОПРОС (текст)**\n\n"
+            f"👤 @{message.from_user.username or message.from_user.first_name}\n"
+            f"🆔 {message.from_user.id}\n\n"
+            f"📝 {message.text[:2000]}"
         )
-        logger.info(f"Text consultation from user {user_id}")
-    except Exception as e:
-        logger.error(f"Error forwarding text consultation: {e}")
-        await message.answer("❌ Произошла ошибка. Попробуйте позже.")
     
+    await message.answer("✅ Вопрос принят. Я отвечу в ближайшее время.")
     await state.clear()
-
-# ============================================
-# ОБРАБОТЧИК ГОЛОСОВЫХ СООБЩЕНИЙ
-# ============================================
 
 @dp.message(ConsultStates.waiting_for_voice)
-async def process_voice_consult(message: Message, state: FSMContext):
-    user_id = message.from_user.id
-    
-    if not check_message_limit(user_id):
-        await message.answer("❌ Вы исчерпали лимит сообщений на сегодня (3 сообщения в сутки).")
-        await state.clear()
-        return
-    
+async def process_consult_voice(message: Message, state: FSMContext):
     if not message.voice:
-        await message.answer("❌ Пожалуйста, отправьте голосовое сообщение.")
+        await message.answer("❌ Отправьте голосовое сообщение.")
         return
     
-    voice_duration = message.voice.duration
-    user_message_counts[user_id] += 1
-    remaining = 3 - user_message_counts[user_id]
+    admin_id = config.get('ADMIN_ID')
     
-    admin_text = (
-        f"📩 **ГОЛОСОВОЙ ВОПРОС**\n\n"
-        f"**От:** @{message.from_user.username or 'нет username'}\n"
-        f"**ID:** `{user_id}`\n"
-        f"**Имя:** {message.from_user.full_name}\n"
-        f"**Длительность:** {voice_duration} сек\n"
-        f"**Осталось сегодня:** {user_message_counts[user_id]}/3"
-    )
+    print(f"🔴 ПОЛУЧЕНО ГОЛОСОВОЕ ОТ {message.from_user.id}")
+    print(f"🔴 ADMIN_ID = {admin_id}")
     
-    try:
-        await bot.send_message(config['ADMIN_ID'], admin_text)
-        await bot.send_voice(config['ADMIN_ID'], message.voice.file_id)
-        await message.answer(
-            f"✅ Ваш голосовой вопрос передан Эдуарду Ивановичу.\n"
-            f"Он свяжется с вами в ближайшее время.\n\n"
-            f"📊 Осталось сообщений сегодня: {remaining}/3",
-            reply_markup=get_consult_main_keyboard()
-        )
-        logger.info(f"Voice consultation from user {user_id}, duration: {voice_duration}s")
-    except Exception as e:
-        logger.error(f"Error forwarding voice consultation: {e}")
-        await message.answer("❌ Произошла ошибка. Попробуйте позже.")
-    
-    await state.clear()
-
-# ============================================
-# ОБРАБОТЧИКИ ДЛЯ КАТЕГОРИЙ ДОКУМЕНТОВ
-# ============================================
-
-@dp.callback_query(lambda c: c.data.startswith('cat_'))
-async def show_category_docs(callback: CallbackQuery):
-    cat_key = callback.data.replace('cat_', '')
-    category = FREE_DOCS.get(cat_key)
-    
-    if not category:
-        await callback.answer("Раздел не найден")
-        return
-    
-    builder = InlineKeyboardBuilder()
-    items = category.get("items", {})
-    for item_id, item_data in items.items():
-        builder.button(
-            text=item_data["name"],
-            callback_data=f"doc_{cat_key}_{item_id}"
-        )
-    builder.button(text="◀️ Назад в меню", callback_data="menu_free")
-    builder.adjust(1)
-    
-    await callback.message.edit_text(
-        f"📂 **{category['name']}**\n\nВыберите документ:",
-        reply_markup=builder.as_markup()
-    )
-    await callback.answer()
-
-# ============================================
-# ОБРАБОТЧИК ДЛЯ ВЫБРАННОГО ДОКУМЕНТА
-# ============================================
-
-@dp.callback_query(lambda c: c.data.startswith('doc_'))
-async def send_document(callback: CallbackQuery):
-    parts = callback.data.split('_')
-    cat_key = parts[1]
-    item_id = int(parts[2])
-    
-    doc = FREE_DOCS.get(cat_key, {}).get("items", {}).get(item_id)
-    if not doc:
-        await callback.answer("Документ не найден")
-        return
-    
-    file_path = os.path.join("files", doc['file'])
-    if os.path.exists(file_path):
+    if admin_id:
         try:
-            file_size = os.path.getsize(file_path) / 1024
-            file_size_str = f"{file_size:.1f} КБ"
-            
-            document = FSInputFile(file_path)
-            await callback.message.answer_document(
-                document, 
-                caption=f"📌 **{doc['name']}**\nРазмер: {file_size_str}"
-            )
+            # Просто пересылаем голосовое админу
+            await message.forward(admin_id)
+            print(f"🔴 ГОЛОСОВОЕ ПЕРЕСЛАНО")
         except Exception as e:
-            logger.error(f"Error sending file {doc['file']}: {e}")
-            await callback.message.answer("❌ Ошибка при отправке файла")
+            print(f"🔴 ОШИБКА: {e}")
     else:
-        await callback.message.answer("❌ Файл временно недоступен")
-        logger.warning(f"File not found: {file_path}")
+        print(f"🔴 ADMIN_ID НЕ НАЙДЕН!")
     
-    back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="◀️ Назад к списку", callback_data=f"cat_{cat_key}")],
-        [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_main")]
-    ])
-    await callback.message.answer(
-        "📌 Документ отправлен. Выберите действие:",
-        reply_markup=back_keyboard
-    )
-    await callback.answer()
-
+    await message.answer("✅ Голосовое сообщение принято.")
+    await state.clear()
 # ============================================
-# ОБРАБОТЧИКИ ДЛЯ МАГАЗИНА
+# КОМАНДА /cancel
 # ============================================
-
-@dp.callback_query(lambda c: c.data.startswith('contract_'))
-async def show_contract(callback: CallbackQuery):
-    contract_id = int(callback.data.split('_')[1])
-    contract = CONTRACTS[contract_id]
-    text = (
-        f"📌 **{contract['name']}**\n\n"
-        f"{contract['description']}\n\n"
-        f"💰 **Цена:** {contract['price']} ₽\n"
-        f"🛠 **Индивидуальная доработка:** +{contract['upgrade_price']} ₽ "
-        f"(всего {contract['price'] + contract['upgrade_price']} ₽)\n\n"
-        f"👇 Выберите действие:"
-    )
-    
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"✅ КУПИТЬ ({contract['price']}₽)", 
-                              callback_data=f"buy_{contract_id}_base")],
-        [InlineKeyboardButton(text=f"⚡ ДОРАБОТКА ({contract['price'] + contract['upgrade_price']}₽)", 
-                              callback_data=f"buy_{contract_id}_upgrade")],
-        [InlineKeyboardButton(text="◀️ Назад к списку", callback_data="menu_shop")],
-        [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_main")]
-    ])
-    
-    await callback.message.edit_text(text, reply_markup=kb)
-    await callback.answer()
-
-@dp.callback_query(lambda c: c.data.startswith('buy_'))
-async def buy_contract(callback: CallbackQuery):
-    await callback.message.answer("💳 Функция оплаты будет добавлена позже.")
-    
-    back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="◀️ Назад к списку", callback_data="menu_shop")],
-        [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_main")]
-    ])
-    await callback.message.answer(
-        "📌 Выберите действие:",
-        reply_markup=back_keyboard
-    )
-    await callback.answer()
-
-# ============================================
-# ОБРАБОТЧИКИ ДЛЯ КЕЙСОВ
-# ============================================
-
-@dp.callback_query(lambda c: c.data.startswith('case_'))
-async def process_case(callback: CallbackQuery):
-    case_id = int(callback.data.split('_')[1])
-    case = cases_db.get(case_id)
-    
-    if case and case["published"]:
-        text = (
-            f"📁 Кейс №{case_id}: {case['title']}\n"
-            f"🏷 Категория: {case['category']}\n"
-            f"📅 Дата: {case['date']}\n\n"
-            f"📋 СИТУАЦИЯ:\n{case['situation']}\n\n"
-            f"❓ ВОПРОС:\n{case['question']}\n\n"
-            f"⚖️ РЕШЕНИЕ:\n{case['solution']}\n\n"
-            f"✅ РЕЗУЛЬТАТ:\n{case['result']}\n\n"
-        )
-        if case['files']:
-            text += "📎 Прикреплённые файлы:\n"
-            for i, filename in enumerate(case['files'], 1):
-                text += f"{i}. {filename}\n"
-        text += f"\n➡️ Нужна такая же консультация? Нажмите /consult"
-        
-        await callback.message.answer(text)
-        
-        if case['files']:
-            for filename in case['files']:
-                file_path = os.path.join("files", filename)
-                if os.path.exists(file_path):
-                    try:
-                        document = FSInputFile(file_path)
-                        await callback.message.answer_document(document)
-                    except Exception as e:
-                        logger.error(f"Error sending case file {filename}: {e}")
-        
-        nav_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="◀️ Назад к списку", callback_data="menu_cases")],
-            [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_main")]
-        ])
-        await callback.message.answer("📌 Выберите действие:", reply_markup=nav_keyboard)
-    else:
-        await callback.message.answer("❌ Этот кейс ещё не опубликован или не найден.")
-    
-    await callback.answer()
-
-# ============================================
-# ОБРАБОТЧИК ДЛЯ СКАЧИВАНИЯ ДОКУМЕНТОВ
-# ============================================
-
-@dp.callback_query(lambda c: c.data.startswith('download_'))
-async def download_document(callback: CallbackQuery):
-    article_id = int(callback.data.split('_')[1])
-    article = await db.get_article(article_id)
-    
-    if not article:
-        await callback.answer("❌ Документ не найден")
+@dp.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext):
+    if await state.get_state() is None:
+        await message.answer("❌ Нет активных действий.")
         return
+    await state.clear()
+    await message.answer("✅ Действие отменено.")
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📂 Перейти к документам", callback_data="menu_free")],
-        [InlineKeyboardButton(text="◀️ Назад к статье", callback_data=f"back_to_article_{article_id}")]
-    ])
-    
-    await callback.message.answer(
-        "📌 Сейчас функция скачивания документа настраивается.\n\n"
-        "Вы можете перейти в раздел «Бесплатные документы» и скачать нужную памятку оттуда.",
-        reply_markup=keyboard
-    )
-    await callback.answer()
-
 # ============================================
-# ОБРАБОТЧИК ДЛЯ ВОЗВРАТА К СТАТЬЕ
+# УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ДИАГНОСТИКИ (ВРЕМЕННО)
 # ============================================
-
-@dp.callback_query(lambda c: c.data.startswith('back_to_article_'))
-async def back_to_article(callback: CallbackQuery):
-    article_id = int(callback.data.split('_')[3])
-    article = await db.get_article(article_id)
-    
-    if not article:
-        await callback.answer("❌ Статья не найдена")
-        return
-    
-    article_title = article['full_text'].split('\n')[0][:50] + "..." if len(article['full_text'].split('\n')[0]) > 50 else article['full_text'].split('\n')[0]
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="📥 Скачать документ", callback_data=f"download_{article_id}"),
-            InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main"),
-            InlineKeyboardButton(text="❓ Консультация", callback_data="menu_consult")
-        ]
-    ])
-    
-    await callback.message.answer(
-        f"📄 {article_title}\n\n{article['full_text']}",
-        reply_markup=keyboard
-    )
-    await callback.answer()
-
-# ============================================
-# ФОНОВАЯ ПРОВЕРКА СТАРЫХ ПОСТОВ (ВРЕМЕННО ОТКЛЮЧЕНО)
-# ============================================
-
-async def check_old_posts_periodically():
-    # Функция временно отключена из-за ошибки с часовыми поясами
-    await asyncio.sleep(60)
-    while True:
-        await asyncio.sleep(24 * 60 * 60)  # Просто спим, ничего не делаем
-        # Позже исправим и включим обратно
+@dp.callback_query()
+async def catch_all_callbacks(callback: CallbackQuery):
+    print(f"🔴🔴🔴 ПОЛУЧЕН НЕИЗВЕСТНЫЙ CALLBACK: {callback.data}")
+    logger.info(f"🔴🔴🔴 ПОЛУЧЕН НЕИЗВЕСТНЫЙ CALLBACK: {callback.data}")
+    await callback.answer(f"Неизвестный callback: {callback.data}")
 
 # ============================================
 # ОБРАБОТЧИК ОШИБОК
 # ============================================
-
 @dp.errors()
 async def errors_handler(event: types.ErrorEvent):
     try:
@@ -1525,91 +1577,359 @@ async def errors_handler(event: types.ErrorEvent):
     return True
 
 # ============================================
-# ЗАПУСК БОТА
+# ПЛАНИРОВЩИК С ПУБЛИКАЦИЕЙ ПОСТОВ (УПРОЩЁННАЯ ВЕРСИЯ)
 # ============================================
 
-async def on_startup():
-    logger.info("🚀 Bot is starting up...")
-    await db.connect()
+async def run_scheduler():
+    """Функция планировщика, запускаемая в фоне"""
+    logger.info("🚀 Планировщик запущен")
     
-    os.makedirs("files", exist_ok=True)
-    os.makedirs("cases", exist_ok=True)
-    os.makedirs("images", exist_ok=True)
+    while True:
+        try:
+            await asyncio.sleep(15)
+            
+            now_utc = datetime.now()
+            logger.info(f"⏰ Проверка постов в {now_utc.strftime('%H:%M:%S')} UTC")
+            
+            all_articles = await db.get_articles_list()
+            posts_to_publish = []
+            
+            for article in all_articles:
+                if article.get('published'):
+                    continue
+                
+                teaser_time_msk = article.get('teaser_time')
+                if not teaser_time_msk:
+                    continue
+                
+                teaser_time_utc = teaser_time_msk - timedelta(hours=3)
+                
+                if teaser_time_utc <= now_utc:
+                    posts_to_publish.append(article)
+                    logger.info(f"📊 Статья #{article['id']} ГОТОВА к публикации!")
+            
+            for post in posts_to_publish:
+                try:
+                    channel = config['CHANNEL_ID']
+                    
+                    post_text = (
+                        f"📌 **ТЕМА ДНЯ**\n\n"
+                        f"**{post['teaser_title']}**\n\n"
+                        f"{post['teaser_text']}\n\n"
+                        f"**ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ**\n"
+                        f"https://t.me/uriskonsult_test_bot?start=article_{post['id']}"
+                    )
+                    
+                    photo_file_id = post.get('teaser_photo')
+                    logger.info(f"📸 Фото для статьи #{post['id']}: {photo_file_id}")
+                    
+                    if photo_file_id:
+                        await bot.send_photo(
+                            chat_id=channel,
+                            photo=photo_file_id,
+                            caption=post_text,
+                            parse_mode='HTML'
+                        )
+                        logger.info(f"✅ Пост #{post['id']} опубликован С ФОТО")
+                    else:
+                        await bot.send_message(
+                            chat_id=channel,
+                            text=post_text,
+                            parse_mode='HTML'
+                        )
+                        logger.info(f"✅ Пост #{post['id']} опубликован БЕЗ ФОТО")
+                    
+                    await db.update_post_status(post['id'], 'published')
+                    
+                except Exception as e:
+                    logger.error(f"❌ Ошибка публикации поста #{post['id']}: {e}")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в планировщике: {e}")
+            await asyncio.sleep(10)
+
+# ============================================
+# СЛЕДУЮЩИЙ БЛОК (WEBHOOK НАСТРОЙКИ)
+# ============================================
+
+import json
+from aiohttp import web
+
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_PATH = "/webhook"
+PORT = int(os.getenv("PORT", 80))
+
+@web.middleware
+async def log_requests(request, handler):
+    print(f"\n🔴🔴🔴 ПОЛУЧЕН HTTP-ЗАПРОС: {request.method} {request.path}")
+    print(f"🔴 Headers: {dict(request.headers)}")
+    try:
+        body = await request.text()
+        if body:
+            body_preview = body[:500] + "..." if len(body) > 500 else body
+            print(f"🔴 Body (первые 500 символов): {body_preview}")
+            if 'application/json' in request.headers.get('Content-Type', ''):
+                try:
+                    json_body = json.loads(body)
+                    print(f"🔴 JSON структура: {json.dumps(json_body, indent=2, ensure_ascii=False)[:500]}")
+                except:
+                    pass
+    except Exception as e:
+        print(f"🔴 Не удалось прочитать тело запроса: {e}")
+    response = await handler(request)
+    print(f"🔴 Ответ: {response.status}")
+    return response
+
+async def handle_root(request):
+    return web.Response(
+        text="✅ Бот работает! Webhook endpoint: /webhook\n"
+             f"📊 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+             f"🔗 URL для вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}"
+    )
+
+async def handle_health(request):
+    return web.Response(text="OK", status=200)
+
+async def on_startup_webhook():
+    print("\n🚀🚀🚀 ЗАПУСК WEBHOOK НАСТРОЙКИ")
     
-    if os.path.exists("files"):
-        files = os.listdir("files")
-        logger.info(f"📁 Найдено файлов в папке files: {len(files)}")
-        if len(files) > 0:
-            logger.info(f"📄 Первые 5 файлов: {files[:5]}")
-        else:
-            logger.warning("⚠️ Папка files пуста!")
-    else:
-        logger.warning("⚠️ Папка files не существует!")
+    if not WEBHOOK_URL:
+        logger.error("❌ WEBHOOK_URL не задан!")
+        print("❌ WEBHOOK_URL не задан!")
+        return
     
-    asyncio.create_task(check_old_posts_periodically())
+    print(f"📌 Устанавливаем вебхук на: {WEBHOOK_URL}{WEBHOOK_PATH}")
+    
+    await bot.delete_webhook(drop_pending_updates=True)
+    print("✅ Старый вебхук удалён")
+    
+    await bot.set_webhook(
+        url=f"{WEBHOOK_URL}{WEBHOOK_PATH}",
+        allowed_updates=["message", "callback_query"]
+    )
+    print(f"✅ Вебхук установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
+    
+    webhook_info = await bot.get_webhook_info()
+    print(f"📊 Информация о вебхуке:")
+    print(f"   URL: {webhook_info.url}")
+    print(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
+    print(f"   Последняя ошибка: {webhook_info.last_error_message}")
+    
+    asyncio.create_task(run_scheduler())
     asyncio.create_task(reset_limits_daily())
     
-    logger.info("✅ Bot started successfully")
+    await db.connect()
+    
+    logger.info("✅ Бот готов к работе через webhook")
+    print("✅ Бот готов к работе через webhook")
 
-async def on_shutdown():
-    logger.info("🛑 Bot is shutting down...")
+async def on_shutdown_webhook():
+    print("\n🛑🛑🛑 ОСТАНОВКА WEBHOOK")
+    await bot.delete_webhook()
+    print("✅ Webhook удален")
+    
     if hasattr(db, 'pool') and db.pool:
         await db.pool.close()
-    await bot.session.close()
-    logger.info("👋 Bot stopped")
-
-# ВРЕМЕННЫЙ ЗАПУСК ПЛАНИРОВЩИКА ВМЕСТЕ С БОТОМ
-async def run_scheduler():
-    """Запускает планировщик в фоне"""
-    try:
-        print("🔴 ПЫТАЮСЬ ЗАПУСТИТЬ ПЛАНИРОВЩИК ИЗ bot.py")
-        import sys
-        sys.path.append('/app')
-        from scheduler import PostScheduler
-        scheduler = PostScheduler()
-        asyncio.create_task(scheduler.start())
-        logger.info("🚀 Планировщик запущен из bot.py")
-    except Exception as e:
-        logger.error(f"❌ ОШИБКА ЗАПУСКА ПЛАНИРОВЩИКА: {e}")
-        import traceback
-        traceback.print_exc()
-
-async def on_shutdown():
-    logger.info("🛑 Bot is shutting down...")
-    if hasattr(db, 'pool') and db.pool:
-        await db.pool.close()
-    await bot.session.close()
-    logger.info("👋 Bot stopped")
-
-# ВРЕМЕННЫЙ ЗАПУСК ПЛАНИРОВЩИКА ВМЕСТЕ С БОТОМ
-async def run_scheduler():
-    """Запускает планировщик в фоне"""
-    try:
-        print("🔴 ПЫТАЮСЬ ЗАПУСТИТЬ ПЛАНИРОВЩИК ИЗ bot.py")
-        import sys
-        sys.path.append('/app')
-        from scheduler import PostScheduler
-        scheduler = PostScheduler()
-        asyncio.create_task(scheduler.start())
-        logger.info("🚀 Планировщик запущен из bot.py")
-    except Exception as e:
-        logger.error(f"❌ ОШИБКА ЗАПУСКА ПЛАНИРОВЩИКА: {e}")
-        import traceback
-        traceback.print_exc()
-
-async def main():
-    dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown)
     
-    # Запускаем планировщик в фоне
-    asyncio.create_task(run_scheduler())
-    
-    await dp.start_polling(bot)
+    await bot.session.close()
+    logger.info("👋 Бот остановлен")
+    print("👋 Бот остановлен")
+
+app = web.Application(middlewares=[log_requests])
+app.router.add_get('/', handle_root)
+app.router.add_get('/health', handle_health)
+
+print(f"📌 Регистрируем обработчик вебхуков на путь: {WEBHOOK_PATH}")
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+
+app.on_startup.append(lambda _: on_startup_webhook())
+app.on_shutdown.append(lambda _: on_shutdown_webhook())
 
 if __name__ == "__main__":
+    if not WEBHOOK_URL:
+        logger.critical("❌ WEBHOOK_URL не задан!")
+        print("❌ WEBHOOK_URL не задан!")
+        sys.exit(1)
+    
+    print(f"\n🚀 ЗАПУСК ВЕБ-СЕРВЕРА")
+    print(f"📌 Порт: {PORT}")
+    print(f"📌 Хост: 0.0.0.0")
+    print(f"📌 Домен: {WEBHOOK_URL}")
+    print(f"📌 Путь вебхука: {WEBHOOK_PATH}")
+    print(f"📌 Полный URL вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}")
+    
+    logger.info(f"🚀 Запуск веб-сервера на порту {PORT}")
+    web.run_app(app, host="0.0.0.0", port=PORT)
+    
+# ============================================
+# ПЛАНИРОВЩИК С ПУБЛИКАЦИЕЙ ПОСТОВ (УПРОЩЁННАЯ ВЕРСИЯ)
+# ============================================
+
+async def run_scheduler():
+    """Функция планировщика, запускаемая в фоне"""
+    logger.info("🚀 Планировщик запущен")
+    
+    while True:
+        try:
+            # Проверяем каждые 15 секунд
+            await asyncio.sleep(15)
+            
+            now_utc = datetime.now()
+            logger.info(f"⏰ Проверка постов в {now_utc.strftime('%H:%M:%S')} UTC")
+            
+            # Получаем все неопубликованные статьи
+            all_articles = await db.get_articles_list()
+            posts_to_publish = []
+            
+            for article in all_articles:
+                if article.get('published'):
+                    continue
+                
+                teaser_time_msk = article.get('teaser_time')
+                if not teaser_time_msk:
+                    continue
+                
+                teaser_time_utc = teaser_time_msk - timedelta(hours=3)
+                
+                if teaser_time_utc <= now_utc:
+                    posts_to_publish.append(article)
+                    logger.info(f"📊 Статья #{article['id']} ГОТОВА к публикации!")
+            
+            # Публикуем
+            for post in posts_to_publish:
+                try:
+                    channel = config['CHANNEL_ID']
+                    
+                    post_text = (
+                        f"📌 **ТЕМА ДНЯ**\n\n"
+                        f"**{post['teaser_title']}**\n\n"
+                        f"{post['teaser_text']}\n\n"
+                        f"**ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ**\n"
+                        f"https://t.me/uriskonsult_test_bot?start=article_{post['id']}"
+                    )
+                    
+                    photo_file_id = post.get('teaser_photo')
+                    logger.info(f"📸 Фото для статьи #{post['id']}: {photo_file_id}")
+                    
+                    if photo_file_id:
+                        await bot.send_photo(
+                            chat_id=channel,
+                            photo=photo_file_id,
+                            caption=post_text,
+                            parse_mode='HTML'
+                        )
+                        logger.info(f"✅ Пост #{post['id']} опубликован С ФОТО")
+                    else:
+                        await bot.send_message(
+                            chat_id=channel,
+                            text=post_text,
+                            parse_mode='HTML'
+                        )
+                        logger.info(f"✅ Пост #{post['id']} опубликован БЕЗ ФОТО")
+                    
+                    # Помечаем как опубликованное
+                    await db.update_post_status(post['id'], 'published')
+                    
+                except Exception as e:
+                    logger.error(f"❌ Ошибка публикации поста #{post['id']}: {e}")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в планировщике: {e}")
+            await asyncio.sleep(10)
+            
+# ============================================
+# СЛЕДУЮЩИЙ БЛОК (WEBHOOK НАСТРОЙКИ)
+# ============================================
+
+import json
+from aiohttp import web
+
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_PATH = "/webhook"
+PORT = int(os.getenv("PORT", 80))
+
+@web.middleware
+async def log_requests(request, handler):
+    print(f"\n🔴🔴🔴 ПОЛУЧЕН HTTP-ЗАПРОС: {request.method} {request.path}")
+    print(f"🔴 Headers: {dict(request.headers)}")
     try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
+        body = await request.text()
+        if body:
+            body_preview = body[:500] + "..." if len(body) > 500 else body
+            print(f"🔴 Body (первые 500 символов): {body_preview}")
+            if 'application/json' in request.headers.get('Content-Type', ''):
+                try:
+                    json_body = json.loads(body)
+                    print(f"🔴 JSON структура: {json.dumps(json_body, indent=2, ensure_ascii=False)[:500]}")
+                except:
+                    pass
     except Exception as e:
-        logger.exception(f"Fatal error: {e}")
+        print(f"🔴 Не удалось прочитать тело запроса: {e}")
+    response = await handler(request)
+    print(f"🔴 Ответ: {response.status}")
+    return response
+
+async def handle_root(request):
+    return web.Response(
+        text="✅ Бот работает! Webhook endpoint: /webhook\n"
+             f"📊 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+             f"🔗 URL для вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}"
+    )
+
+async def handle_health(request):
+    return web.Response(text="OK", status=200)
+
+async def on_startup_webhook():
+    print("\n🚀🚀🚀 ЗАПУСК WEBHOOK НАСТРОЙКИ")
+    
+    if not WEBHOOK_URL:
+        logger.error("❌ WEBHOOK_URL не задан!")
+        print("❌ WEBHOOK_URL не задан!")
+        return
+    
+    print(f"📌 Устанавливаем вебхук на: {WEBHOOK_URL}{WEBHOOK_PATH}")
+    
+    await bot.delete_webhook(drop_pending_updates=True)
+    print("✅ Старый вебхук удалён")
+    
+    await bot.set_webhook(
+    url=f"{WEBHOOK_URL}{WEBHOOK_PATH}",
+    allowed_updates=["message", "callback_query"]
+)
+    print(f"✅ Вебхук установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
+    
+    webhook_info = await bot.get_webhook_info()
+    print(f"📊 Информация о вебхуке:")
+    print(f"   URL: {webhook_info.url}")
+    print(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
+    print(f"   Последняя ошибка: {webhook_info.last_error_message}")
+    
+    asyncio.create_task(run_scheduler())
+    asyncio.create_task(reset_limits_daily())
+    
+    await db.connect()
+    
+    logger.info("✅ Бот готов к работе через webhook")
+    print("✅ Бот готов к работе через webhook")
+
+async def on_shutdown_webhook():
+    print("\n🛑🛑🛑 ОСТАНОВКА WEBHOOK")
+    await bot.delete_webhook()
+    print("✅ Webhook удален")
+    
+    if hasattr(db, 'pool') and db.pool:
+        await db.pool.close()
+    
+    await bot.session.close()
+    logger.info("👋 Бот остановлен")
+    print("👋 Бот остановлен")
+
+app = web.Application(middlewares=[log_requests])
+app.router.add_get('/', handle_root)
+app.router.add_get('/health', handle_health)
+
+print(f"📌 Регистрируем обработчик вебхуков на путь: {WEBHOOK_PATH}")
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+
+app.on_startup.append(lambda _: on_startup_webhook())
+app.on_shutdown.append(lambda _: on_shutdown_webhook())
