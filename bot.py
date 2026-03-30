@@ -1457,6 +1457,7 @@ async def process_contract_comment(message: Message, state: FSMContext):
 async def back_to_shop(callback: CallbackQuery):
     await callback.answer()
     await cmd_shop(callback.message)
+
 # ============================================
 # ОБРАБОТЧИК КОНСУЛЬТАЦИИ
 # ============================================
