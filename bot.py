@@ -1520,32 +1520,29 @@ async def process_consult_voice(message: Message, state: FSMContext):
         await message.answer("❌ Отправьте голосовое сообщение.")
         return
     
-    voice_file_id = message.voice.file_id
+    # Отправляем админу через пересылку (forward)
     admin_id = config.get('ADMIN_ID')
     
-    # ДИАГНОСТИКА
     print(f"🔴🔴🔴 ПОЛУЧЕНО ГОЛОСОВОЕ")
     print(f"🔴 ADMIN_ID из config: {admin_id}")
-    print(f"🔴 Тип ADMIN_ID: {type(admin_id)}")
     
     if admin_id:
         try:
-            # Отправляем текстовое уведомление админу
+            # Отправляем текстовое уведомление
             await bot.send_message(
                 admin_id,
                 f"🎤 **ВОПРОС (голос)**\n\n"
                 f"👤 @{message.from_user.username or message.from_user.first_name}\n"
                 f"🆔 {message.from_user.id}"
             )
-            # Отправляем голосовое сообщение админу
-            await bot.send_voice(admin_id, voice_file_id)
-            print(f"🔴 Голосовое отправлено админу {admin_id}")
+            # ПЕРЕСЫЛАЕМ голосовое сообщение (сохраняет формат)
+            await message.forward(admin_id)
+            print(f"🔴 Голосовое переслано админу {admin_id}")
         except Exception as e:
             print(f"🔴 ОШИБКА отправки: {e}")
     
     await message.answer("✅ Голосовое сообщение принято. Я прослушаю и отвечу.")
     await state.clear()
-
 # ============================================
 # КОМАНДА /cancel
 # ============================================
