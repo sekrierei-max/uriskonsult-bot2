@@ -1466,6 +1466,119 @@ async def consultation_handler(callback: CallbackQuery):
     await callback.answer()
 
 # ============================================
+# ОБРАБОТЧИКИ КОНСУЛЬТАЦИИ
+# ============================================
+
+class ConsultStates(StatesGroup):
+    waiting_for_text = State()      # для текстового вопроса
+    waiting_for_voice = State()     # для голосового сообщения
+
+@dp.callback_query(lambda c: c.data == "consult_write")
+async def consult_write(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await state.set_state(ConsultStates.waiting_for_text)
+    await callback.message.answer(
+        "✍️ **Напишите ваш вопрос**\n\n"
+        "Опишите ситуацию подробно. Я отвечу в ближайшее время.\n\n"
+        "📌 Если хотите отменить — отправьте /cancel"
+    )
+
+@dp.callback_query(lambda c: c.data == "consult_speak")
+async def consult_speak(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await state.set_state(ConsultStates.waiting_for_voice)
+    await callback.message.answer(
+        "🎤 **Озвучьте ваш вопрос**\n\n"
+        "Отправьте голосовое сообщение (до 2 минут).\n"
+        "Я прослушаю и отвечу.\n\n"
+        "📌 Если хотите отменить — отправьте /cancel"
+    )
+
+@dp.message(ConsultStates.waiting_for_text)
+async def process_consult_text(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Пожалуйста, отправьте текст вопроса.")
+        return
+    
+    # Отправляем уведомление администратору
+    admin_id = config.get('ADMIN_ID')
+    if admin_id:
+        try:
+            await bot.send_message(
+                chat_id=admin_id,
+                text=(
+                    f"✍️ **НОВЫЙ ВОПРОС (текст)**\n\n"
+                    f"👤 Пользователь: @{message.from_user.username or message.from_user.first_name}\n"
+                    f"🆔 ID: {message.from_user.id}\n\n"
+                    f"📝 **Вопрос:**\n{message.text[:2000]}"
+                ),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка отправки уведомления админу: {e}")
+    
+    await message.answer(
+        "✅ **Ваш вопрос принят!**\n\n"
+        "Я отвечу вам в ближайшее время.\n\n"
+        "Если вопрос срочный — напишите ещё раз."
+    )
+    await state.clear()
+
+@dp.message(ConsultStates.waiting_for_voice)
+async def process_consult_voice(message: Message, state: FSMContext):
+    if not message.voice:
+        await message.answer("❌ Пожалуйста, отправьте голосовое сообщение.")
+        return
+    
+    # Получаем file_id голосового сообщения
+    voice_file_id = message.voice.file_id
+    
+    # Отправляем уведомление администратору
+    admin_id = config.get('ADMIN_ID')
+    if admin_id:
+        try:
+            # Отправляем текст уведомления
+            await bot.send_message(
+                chat_id=admin_id,
+                text=(
+                    f"🎤 **НОВЫЙ ВОПРОС (голос)**\n\n"
+                    f"👤 Пользователь: @{message.from_user.username or message.from_user.first_name}\n"
+                    f"🆔 ID: {message.from_user.id}\n\n"
+                    f"📎 Голосовое сообщение ниже:"
+                ),
+                parse_mode="Markdown"
+            )
+            # Пересылаем голосовое сообщение
+            await bot.send_voice(
+                chat_id=admin_id,
+                voice=voice_file_id
+            )
+        except Exception as e:
+            logger.error(f"Ошибка отправки голосового сообщения админу: {e}")
+    
+    await message.answer(
+        "✅ **Ваш вопрос принят!**\n\n"
+        "Я прослушаю сообщение и отвечу в ближайшее время."
+    )
+    await state.clear()
+
+# ============================================
+# КОМАНДА /cancel (отмена)
+# ============================================
+@dp.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state is None:
+        await message.answer("❌ Нет активных действий для отмены.")
+        return
+    
+    await state.clear()
+    await message.answer(
+        "✅ Действие отменено.\n\n"
+        "Вы можете продолжить работу с ботом."
+    )
+    
+# ============================================
 # УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ДИАГНОСТИКИ (ВРЕМЕННО)
 # ============================================
 @dp.callback_query()
