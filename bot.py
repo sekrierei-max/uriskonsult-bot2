@@ -1473,6 +1473,14 @@ async def handle_contract(callback: CallbackQuery):
             await callback.message.answer("❌ Ошибка при отправке договора.")
     else:
         await callback.message.answer(f"❌ Файл не найден: {contract['file']}")
+
+# ============================================
+# ОБРАБОТЧИК НАЗАД К КАТЕГОРИЯМ
+# ============================================
+@dp.callback_query(lambda c: c.data == "back_to_free")
+async def back_to_free(callback: CallbackQuery):
+    await callback.answer()
+    await cmd_free(callback.message)
 # ============================================
 # ОБРАБОТЧИК ОШИБОК
 # ============================================
