@@ -1413,7 +1413,39 @@ async def back_to_free(callback: CallbackQuery):
 async def consultation_handler(callback: CallbackQuery):
     await cmd_consult(callback.message)
     await callback.answer()
-
+# ============================================
+# ОБРАБОТЧИК МАГАЗИНА ДОГОВОРОВ
+# ============================================
+@dp.callback_query(lambda c: c.data.startswith("contract_"))
+async def handle_contract(callback: CallbackQuery):
+    contract_id = int(callback.data.split("_")[1])
+    contract = CONTRACTS.get(contract_id)
+    
+    if not contract:
+        await callback.answer("Договор не найден", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    file_path = os.path.join("files", contract["file"])
+    
+    if os.path.exists(file_path):
+        try:
+            document = FSInputFile(file_path)
+            await callback.message.answer_document(
+                document,
+                caption=(
+                    f"📄 **{contract['name']}**\n\n"
+                    f"{contract['description']}\n\n"
+                    f"💰 **Цена:** {contract['price']} ₽\n"
+                    f"🔄 **Апгрейд:** {contract['upgrade_price']} ₽"
+                )
+            )
+        except Exception as e:
+            logger.error(f"Ошибка отправки договора: {e}")
+            await callback.message.answer("❌ Ошибка при отправке договора.")
+    else:
+        await callback.message.answer(f"❌ Файл не найден: {contract['file']}")
 # ============================================
 # ОБРАБОТЧИК ОШИБОК
 # ============================================
