@@ -1467,12 +1467,12 @@ async def consultation_handler(callback: CallbackQuery):
     await callback.answer()
 
 # ============================================
-# ОБРАБОТЧИКИ КОНСУЛЬТАЦИИ (УПРОЩЁННАЯ ВЕРСИЯ)
+# ОБРАБОТЧИКИ КОНСУЛЬТАЦИИ (ПРОСТАЯ ВЕРСИЯ)
 # ============================================
 
 class ConsultStates(StatesGroup):
-    waiting_for_text = State()      # для текстового вопроса
-    waiting_for_voice = State()     # для голосового сообщения
+    waiting_for_text = State()
+    waiting_for_voice = State()
 
 @dp.callback_query(lambda c: c.data == "consult_write")
 async def consult_write(callback: CallbackQuery, state: FSMContext):
@@ -1480,8 +1480,8 @@ async def consult_write(callback: CallbackQuery, state: FSMContext):
     await state.set_state(ConsultStates.waiting_for_text)
     await callback.message.answer(
         "✍️ **Напишите ваш вопрос**\n\n"
-        "Опишите ситуацию подробно. Я отвечу в ближайшее время.\n\n"
-        "📌 Если хотите отменить — отправьте /cancel"
+        "Опишите ситуацию. Я отвечу в ближайшее время.\n\n"
+        "📌 Отмена: /cancel"
     )
 
 @dp.callback_query(lambda c: c.data == "consult_speak")
@@ -1489,88 +1489,63 @@ async def consult_speak(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.set_state(ConsultStates.waiting_for_voice)
     await callback.message.answer(
-        "🎤 **Озвучьте ваш вопрос**\n\n"
-        "Отправьте голосовое сообщение. Я прослушаю и отвечу.\n\n"
-        "📌 Если хотите отменить — отправьте /cancel"
+        "🎤 **Отправьте голосовое сообщение**\n\n"
+        "Я прослушаю и отвечу.\n\n"
+        "📌 Отмена: /cancel"
     )
 
 @dp.message(ConsultStates.waiting_for_text)
 async def process_consult_text(message: Message, state: FSMContext):
     if not message.text:
-        await message.answer("❌ Пожалуйста, отправьте текст вопроса.")
+        await message.answer("❌ Отправьте текст вопроса.")
         return
     
+    # Отправляем админу
     admin_id = config.get('ADMIN_ID')
     if admin_id:
-        try:
-            await bot.send_message(
-                chat_id=admin_id,
-                text=(
-                    f"✍️ **НОВЫЙ ВОПРОС (текст)**\n\n"
-                    f"👤 Пользователь: @{message.from_user.username or message.from_user.first_name}\n"
-                    f"🆔 ID: {message.from_user.id}\n\n"
-                    f"📝 **Вопрос:**\n{message.text[:2000]}"
-                ),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            logger.error(f"Ошибка отправки уведомления админу: {e}")
+        await bot.send_message(
+            admin_id,
+            f"✍️ **ВОПРОС (текст)**\n\n"
+            f"👤 @{message.from_user.username or message.from_user.first_name}\n"
+            f"🆔 {message.from_user.id}\n\n"
+            f"📝 {message.text[:2000]}"
+        )
     
-    await message.answer(
-        "✅ **Ваш вопрос принят!**\n\n"
-        "Я отвечу вам в ближайшее время."
-    )
+    await message.answer("✅ Вопрос принят. Я отвечу в ближайшее время.")
     await state.clear()
 
 @dp.message(ConsultStates.waiting_for_voice)
 async def process_consult_voice(message: Message, state: FSMContext):
     if not message.voice:
-        await message.answer("❌ Пожалуйста, отправьте голосовое сообщение.")
+        await message.answer("❌ Отправьте голосовое сообщение.")
         return
     
     voice_file_id = message.voice.file_id
     
+    # Отправляем админу
     admin_id = config.get('ADMIN_ID')
     if admin_id:
-        try:
-            await bot.send_message(
-                chat_id=admin_id,
-                text=(
-                    f"🎤 **НОВЫЙ ВОПРОС (голос)**\n\n"
-                    f"👤 Пользователь: @{message.from_user.username or message.from_user.first_name}\n"
-                    f"🆔 ID: {message.from_user.id}\n\n"
-                    f"📎 Голосовое сообщение ниже:"
-                ),
-                parse_mode="Markdown"
-            )
-            await bot.send_voice(
-                chat_id=admin_id,
-                voice=voice_file_id
-            )
-        except Exception as e:
-            logger.error(f"Ошибка отправки голосового сообщения админу: {e}")
+        await bot.send_message(
+            admin_id,
+            f"🎤 **ВОПРОС (голос)**\n\n"
+            f"👤 @{message.from_user.username or message.from_user.first_name}\n"
+            f"🆔 {message.from_user.id}"
+        )
+        await bot.send_voice(admin_id, voice_file_id)
     
-    await message.answer(
-        "✅ **Ваш голосовой вопрос принят!**\n\n"
-        "Я прослушаю сообщение и отвечу в ближайшее время."
-    )
+    await message.answer("✅ Голосовое сообщение принято. Я прослушаю и отвечу.")
     await state.clear()
 
 # ============================================
-# КОМАНДА /cancel (отмена)
+# КОМАНДА /cancel
 # ============================================
 @dp.message(Command("cancel"))
 async def cmd_cancel(message: Message, state: FSMContext):
-    current_state = await state.get_state()
-    if current_state is None:
-        await message.answer("❌ Нет активных действий для отмены.")
+    if await state.get_state() is None:
+        await message.answer("❌ Нет активных действий.")
         return
-    
     await state.clear()
-    await message.answer(
-        "✅ Действие отменено.\n\n"
-        "Вы можете продолжить работу с ботом."
-    )
+    await message.answer("✅ Действие отменено.")
     
 # ============================================
 # УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ДИАГНОСТИКИ (ВРЕМЕННО)
