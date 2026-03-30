@@ -1321,9 +1321,15 @@ async def handle_document(callback: CallbackQuery):
     file_path = os.path.join("files", doc["file"])
     
     # ДИАГНОСТИКА
+    print(f"🔴🔴🔴 ДИАГНОСТИКА ДОКУМЕНТА")
+    print(f"🔴 Категория: {category_key}")
+    print(f"🔴 Имя документа: {doc['name']}")
     print(f"🔴 Ищем файл: {file_path}")
     print(f"🔴 Текущая директория: {os.getcwd()}")
-    print(f"🔴 Содержимое папки files: {os.listdir('files') if os.path.exists('files') else 'папка не найдена'}")
+    print(f"🔴 Папка files существует: {os.path.exists('files')}")
+    if os.path.exists('files'):
+        print(f"🔴 Содержимое папки files: {os.listdir('files')}")
+    print(f"🔴 Файл найден: {os.path.exists(file_path)}")
     
     if os.path.exists(file_path):
         try:
