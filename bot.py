@@ -1237,6 +1237,89 @@ async def other_articles_handler(callback: CallbackQuery):
     await cmd_free(callback.message)
     await callback.answer()
 
+@dp.callback_query(lambda c: c.data == "other_articles")
+async def other_articles_handler(callback: CallbackQuery):
+    await cmd_free(callback.message)
+    await callback.answer()
+
+# ============================================
+# ОБРАБОТЧИК КАТЕГОРИЙ БЕСПЛАТНЫХ ДОКУМЕНТОВ
+# ============================================
+@dp.callback_query(lambda c: c.data.startswith("cat_"))
+async def handle_category(callback: CallbackQuery):
+    category_key = callback.data.replace("cat_", "")
+    category = FREE_DOCS.get(category_key)
+    
+    if not category:
+        await callback.answer("Категория не найдена", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    # Формируем клавиатуру с документами
+    builder = InlineKeyboardBuilder()
+    for doc_id, doc in category["items"].items():
+        builder.button(
+            text=doc["name"],
+            callback_data=f"doc_{category_key}_{doc_id}"
+        )
+    builder.button(text="◀️ Назад", callback_data="back_to_free")
+    builder.adjust(1)
+    
+    await callback.message.answer(
+        f"📁 **{category['name']}**\n\nВыберите документ:",
+        reply_markup=builder.as_markup()
+    )
+
+# ============================================
+# ОБРАБОТЧИК ВЫБОРА ДОКУМЕНТА
+# ============================================
+@dp.callback_query(lambda c: c.data.startswith("doc_"))
+async def handle_document(callback: CallbackQuery):
+    parts = callback.data.split("_")
+    if len(parts) < 3:
+        await callback.answer("Ошибка", show_alert=True)
+        return
+    
+    category_key = parts[1]
+    doc_id = int(parts[2])
+    
+    category = FREE_DOCS.get(category_key)
+    if not category or doc_id not in category["items"]:
+        await callback.answer("Документ не найден", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    doc = category["items"][doc_id]
+    file_path = os.path.join("files", doc["file"])
+    
+    if os.path.exists(file_path):
+        try:
+            document = FSInputFile(file_path)
+            await callback.message.answer_document(
+                document,
+                caption=f"📄 **{doc['name']}**\n\nФайл готов к скачиванию."
+            )
+        except Exception as e:
+            logger.error(f"Ошибка отправки файла: {e}")
+            await callback.message.answer("❌ Ошибка при отправке файла.")
+    else:
+        await callback.message.answer(f"❌ Файл не найден: {doc['file']}")
+
+# ============================================
+# ОБРАБОТЧИК НАЗАД К КАТЕГОРИЯМ
+# ============================================
+@dp.callback_query(lambda c: c.data == "back_to_free")
+async def back_to_free(callback: CallbackQuery):
+    await callback.answer()
+    await cmd_free(callback.message)
+
+@dp.callback_query(lambda c: c.data == "consultation")
+async def consultation_handler(callback: CallbackQuery):
+    await cmd_consult(callback.message)
+    await callback.answer()
+
 @dp.callback_query(lambda c: c.data == "consultation")
 async def consultation_handler(callback: CallbackQuery):
     await cmd_consult(callback.message)
