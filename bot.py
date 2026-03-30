@@ -1937,19 +1937,3 @@ SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 
 app.on_startup.append(lambda _: on_startup_webhook())
 app.on_shutdown.append(lambda _: on_shutdown_webhook())
-
-if __name__ == "__main__":
-    if not WEBHOOK_URL:
-        logger.critical("❌ WEBHOOK_URL не задан!")
-        print("❌ WEBHOOK_URL не задан!")
-        sys.exit(1)
-    
-    print(f"\n🚀 ЗАПУСК ВЕБ-СЕРВЕРА")
-    print(f"📌 Порт: {PORT}")
-    print(f"📌 Хост: 0.0.0.0")
-    print(f"📌 Домен: {WEBHOOK_URL}")
-    print(f"📌 Путь вебхука: {WEBHOOK_PATH}")
-    print(f"📌 Полный URL вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}")
-    
-    logger.info(f"🚀 Запуск веб-сервера на порту {PORT}")
-    web.run_app(app, host="0.0.0.0", port=PORT)
