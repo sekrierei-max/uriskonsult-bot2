@@ -865,6 +865,8 @@ async def cmd_add_article(message: Message, state: FSMContext, **kwargs):
 
 @dp.message(ArticleStates.full_text)
 async def process_full_text(message: Message, state: FSMContext):
+    print(f"🔴🔴🔴 ПОЛУЧЕН ТЕКСТ (первые 100 символов): {message.text[:100]}...")
+    
     if not message.text:
         await message.answer("❌ Пожалуйста, отправьте текст.")
         return
@@ -880,6 +882,8 @@ async def process_full_text(message: Message, state: FSMContext):
             cleaned_lines.append(line)
     
     cleaned_text = '\n'.join(cleaned_lines).strip()
+    
+    print(f"🔴 ОЧИЩЕННЫЙ ТЕКСТ (первые 100 символов): {cleaned_text[:100]}...")
     
     await state.update_data(full_text=cleaned_text)
     
