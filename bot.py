@@ -571,14 +571,12 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
                 teaser_title = article.get('teaser_title', 'Статья')
                 full_text = article.get('full_text', '')
                 
-                # Формируем сообщение для бота с эмодзи-разделителем
+                # Формируем сообщение для бота (разделитель только сверху)
                 bot_text = (
                     f"🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹\n"
                     f"📌 **ПОЛНЫЙ ПОСТ СО ССЫЛКАМИ НА НОРМАТИВНЫЕ АКТЫ**\n\n"
                     f"**На тему:** {teaser_title}\n\n"
-                    f"{full_text}\n\n"
-                    f"🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹\n"
-                    f"🔙 ВЕРНУТЬСЯ В ГЛАВНОЕ МЕНЮ"
+                    f"{full_text}"
                 )
                 
                 # Кнопка возврата
