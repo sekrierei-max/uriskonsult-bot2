@@ -894,10 +894,15 @@ async def process_full_text(message: Message, state: FSMContext):
     
 @dp.message(ArticleStates.teaser_title)
 async def process_teaser_title(message: Message, state: FSMContext):
+    print(f"🔴🔴🔴 ПОЛУЧЕН ЗАГОЛОВОК: {message.text}")
+    
     if not message.text:
         await message.answer("❌ Пожалуйста, отправьте заголовок.")
         return
+    
     await state.update_data(teaser_title=message.text.strip())
+    
+    print(f"🔴 ЗАГОЛОВОК СОХРАНЁН, ПЕРЕХОД К ШАГУ 3")
     
     await message.answer(
         "📝 **Шаг 3 из 5:** Введите ТИЗЕР (короткий текст для канала):"
