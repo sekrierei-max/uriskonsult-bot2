@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Настройка iPhone | Геолокация на фото</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #f5f7fa;
+            font-family: -apple-system, 'Segoe UI', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+            padding: 30px 20px;
+            line-height: 1.5;
+        }
+        
+        .instruction-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: #1a2c3e;
+            padding: 28px 32px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            color: white;
+            font-size: 26px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+        
+        .content {
+            padding: 32px;
+        }
+        
+        .step-card {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 48px;
+            padding-bottom: 32px;
+            border-bottom: 1px solid #eef2f6;
+        }
+        
+        .step-card:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .step-number-large {
+            width: 56px;
+            height: 56px;
+            background: #d4af37;
+            border-radius: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+            color: #1a2c3e;
+            flex-shrink: 0;
+        }
+        
+        .step-content {
+            flex: 1;
+        }
+        
+        .step-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1a2c3e;
+            margin-bottom: 12px;
+        }
+        
+        .step-description {
+            font-size: 15px;
+            color: #4a5a6a;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        
+        .step-description ol {
+            margin-left: 20px;
+        }
+        
+        .step-description li {
+            margin-bottom: 8px;
+        }
+        
+        .visual {
+            background: #f8fafc;
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .visual-title {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .iphone-frame {
+            background: #ffffff;
+            border-radius: 28px;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            position: relative;
+        }
+        
+        .screen-header {
+            text-align: center;
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #eef2f6;
+        }
+        
+        .settings-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 8px;
+            border-bottom: 1px solid #f0f0f0;
+            gap: 12px;
+        }
+        
+        .settings-icon {
+            width: 28px;
+            height: 28px;
+            background: #eef2f6;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        
+        .settings-label {
+            flex: 1;
+            font-size: 15px;
+            font-weight: 500;
+            color: #1e293b;
+        }
+        
+        .toggle-green {
+            width: 44px;
+            height: 24px;
+            background: #34c759;
+            border-radius: 24px;
+            position: relative;
+        }
+        
+        .toggle-green::after {
+            content: '';
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 20px;
+            position: absolute;
+            right: 2px;
+            top: 2px;
+        }
+        
+        .highlight-border {
+            position: relative;
+        }
+        
+        .highlight-border::before {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: -6px;
+            right: -6px;
+            bottom: -6px;
+            border: 3px solid #e74c3c;
+            border-radius: 14px;
+            pointer-events: none;
+        }
+        
+        .red-circle {
+            position: absolute;
+            top: -12px;
+            right: -12px;
+            width: 26px;
+            height: 26px;
+            background: #e74c3c;
+            color: white;
+            border-radius: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 10;
+        }
+        
+        .red-arrow {
+            position: absolute;
+            right: -30px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 20px;
+            color: #e74c3c;
+        }
+        
+        .apps-list {
+            margin-top: 8px;
+        }
+        
+        .app-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .app-name {
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .app-access {
+            font-size: 13px;
+            color: #64748b;
+        }
+        
+        .choice-popup {
+            background: #ffffff;
+            border-radius: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            padding: 8px 0;
+            margin-top: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .choice-option {
+            padding: 12px 16px;
+            font-size: 14px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .choice-option.selected {
+            background: #eef2ff;
+            color: #3b82f6;
+            font-weight: 500;
+        }
+        
+        .info-card {
+            background: #fef9e6;
+            border-left: 4px solid #d4af37;
+            padding: 20px;
+            margin-top: 32px;
+            border-radius: 16px;
+        }
+        
+        .info-card p {
+            font-size: 14px;
+            color: #5a5a5a;
+            margin-bottom: 8px;
+        }
+        
+        .info-card p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .benefit-box {
+            background: #eef2ff;
+            border-radius: 16px;
+            padding: 20px;
+            margin-top: 8px;
+        }
+        
+        .benefit-box p {
+            font-size: 15px;
+            color: #1e293b;
+            margin-bottom: 0;
+        }
+        
+        .buttons {
+            padding: 24px 32px 32px;
+            background: #fafbfc;
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            border-top: 1px solid #eef2f6;
+        }
+        
+        .btn {
+            padding: 12px 28px;
+            border-radius: 40px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #1a2c3e;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2c4056;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #1a2c3e;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .btn-secondary:hover {
+            background: #e9edf2;
+        }
+        
+        @media (max-width: 750px) {
+            .step-card {
+                flex-direction: column;
+                gap: 16px;
+            }
+            .step-number-large {
+                align-self: flex-start;
+            }
+            .red-arrow {
+                position: static;
+                text-align: right;
+                margin-top: 8px;
+                display: block;
+            }
+        }
+        
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .buttons {
+                display: none;
+            }
+            .instruction-container {
+                box-shadow: none;
+            }
+            .visual {
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="instruction-container" id="instruction">
+        <div class="header">
+            <h1>📱 Настройка iPhone</h1>
+            <p>Для сохранения геолокации на фотографиях</p>
+        </div>
+        
+        <div class="content">
+            <!-- Шаг 1 -->
+            <div class="step-card">
+                <div class="step-number-large">1</div>
+                <div class="step-content">
+                    <div class="step-title">Откройте «Настройки»</div>
+                    <div class="step-description">
+                        На главном экране iPhone найдите и нажмите на значок «Настройки». Это серое приложение с шестерёнкой.
+                    </div>
+                    <div class="visual">
+                        <div class="visual-title">📱 Что видите на экране</div>
+                        <div class="iphone-frame">
+                            <div class="screen-header">Настройки</div>
+                            <div class="settings-item">
+                                <div class="settings-icon">🔋</div>
+                                <div class="settings-label">Аккумулятор</div>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-icon">⚙️</div>
+                                <div class="settings-label">Основные</div>
+                            </div>
+                            <div class="settings-item highlight-border" style="position: relative;">
+                                <div class="settings-icon">💬</div>
+                                <div class="settings-label">Siri и Поиск</div>
+                                <div class="red-circle" style="top: -8px; right: -4px;">1</div>
+                                <div class="red-arrow" style="right: -35px;">→</div>
+                            </div>
+                        </div>
+                        <div class="visual-title" style="margin-top: 12px; color: #e74c3c;">🔴 Красным кружком выделен пункт «Настройки»</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Шаг 2 -->
+            <div class="step-card">
+                <div class="step-number-large">2</div>
+                <div class="step-content">
+                    <div class="step-title">Перейдите в «Конфиденциальность»</div>
+                    <div class="step-description">
+                        Прокрутите вниз до раздела «Конфиденциальность» и нажмите на него. Здесь находятся все разрешения для приложений.
+                    </div>
+                    <div class="visual">
+                        <div class="visual-title">📱 Экран «Настройки» (прокручен вниз)</div>
+                        <div class="iphone-frame">
+                            <div class="settings-item">
+                                <div class="settings-icon">💬</div>
+                                <div class="settings-label">Siri и Поиск</div>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-icon">🔐</div>
+                                <div class="settings-label">Touch ID и пароль</div>
+                            </div>
+                            <div class="settings-item highlight-border" style="position: relative; background: #fff5f0;">
+                                <div class="settings-icon">🔒</div>
+                                <div class="settings-label" style="font-weight: 500;">Конфиденциальность</div>
+                                <div class="red-circle" style="top: -8px; right: -4px;">2</div>
+                                <div class="red-arrow" style="right: -35px;">→</div>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-icon">🛡️</div>
+                                <div class="settings-label">Защита</div>
+                            </div>
+                        </div>
+                        <div class="visual-title" style="margin-top: 12px;">🔴 Нажмите «Конфиденциальность»</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Шаг 3 -->
+            <div class="step-card">
+                <div class="step-number-large">3</div>
+                <div class="step-content">
+                    <div class="step-title">Включите «Службы геолокации»</div>
+                    <div class="step-description">
+                        Нажмите «Службы геолокации» и убедитесь, что переключатель вверху активен (зелёный).
+                    </div>
+                    <div class="visual">
+                        <div class="visual-title">📱 Экран «Конфиденциальность»</div>
+                        <div class="iphone-frame">
+                            <div class="settings-item highlight-border" style="position: relative;">
+                                <div class="settings-icon">📍</div>
+                                <div class="settings-label" style="font-weight: 500;">Службы геолокации</div>
+                                <div class="toggle-green"></div>
+                                <div class="red-circle" style="top: -8px; right: -4px;">3</div>
+                                <div class="red-arrow" style="right: -35px;">→</div>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-icon">📇</div>
+                                <div class="settings-label">Контакты</div>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-icon">📅</div>
+                                <div class="settings-label">Календари</div>
+                            </div>
+                        </div>
+                        <div class="visual-title" style="margin-top: 12px;">✅ Переключатель вверху должен быть зелёным (включён)</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Шаг 4 -->
+            <div class="step-card">
+                <div class="step-number-large">4</div>
+                <div class="step-content">
+                    <div class="step-title">Настройте доступ для камеры</div>
+                    <div class="step-description">
+                        <strong>Важно:</strong> Не выходите из раздела «Службы геолокации». Прокрутите вниз до приложения <strong>«Камера»</strong> (оно находится в списке приложений внутри этого экрана), нажмите на него и выберите <strong>«При использовании приложения»</strong>.
+                    </div>
+                    <div class="visual">
+                        <div class="visual-title">📱 Экран «Службы геолокации» (список приложений)</div>
+                        <div class="iphone-frame">
+                            <div class="screen-header" style="margin-bottom: 8px;">Службы геолокации</div>
+                            <div class="apps-list">
+                                <div class="app-row">
+                                    <div class="app-name">📍 Службы геолокации</div>
+                                    <div class="toggle-green"></div>
+                                </div>
+                                <div class="app-row highlight-border" style="position: relative; background: #fff5f0; margin: 4px 0; border-radius: 10px;">
+                                    <div class="app-name">📷 Камера</div>
+                                    <div class="app-access" style="color: #e74c3c; font-weight: 500;">При использовании →</div>
+                                    <div class="red-circle" style="top: -6px; right: -4px;">4</div>
+                                </div>
+                                <div class="app-row">
+                                    <div class="app-name">🗺️ Карты</div>
+                                    <div class="app-access">При использовании</div>
+                                </div>
+                                <div class="app-row">
+                                    <div class="app-name">🌤️ Погода</div>
+                                    <div class="app-access">Всегда</div>
+                                </div>
+                                <div class="app-row">
+                                    <div class="app-name">📸 Instagram</div>
+                                    <div class="app-access">Никогда</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="visual-title" style="margin-top: 12px;">🔴 Найдите приложение «Камера» в списке и нажмите на него</div>
+                        
+                        <div class="visual-title" style="margin-top: 16px;">📱 После нажатия на «Камеру» выберите:</div>
+                        <div class="iphone-frame" style="margin-top: 8px;">
+                            <div class="choice-popup">
+                                <div class="choice-option">Никогда</div>
+                                <div class="choice-option selected" style="background: #eef2ff; color: #3b82f6;">При использовании приложения</div>
+                                <div class="choice-option">Всегда</div>
+                            </div>
+                            <div class="visual-title" style="margin-top: 12px; color: #e74c3c;">✅ Выберите «При использовании приложения»</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Шаг 5 - ИСПРАВЛЕННЫЙ -->
+            <div class="step-card">
+                <div class="step-number-large">5</div>
+                <div class="step-content">
+                    <div class="step-title">Проверьте, что всё работает</div>
+                    <div class="step-description">
+                        <ol>
+                            <li>Откройте приложение <strong>«Фото»</strong></li>
+                            <li>Выберите любой свежий снимок</li>
+                            <li><strong>Смахните вверх</strong> или нажмите кнопку <strong>«Информация»</strong> — это кружок с буквой i</li>
+                            <li>Если появилась карта и координаты — геолокация включена правильно</li>
+                        </ol>
+                    </div>
+                    <div class="visual">
+                        <div class="visual-title">📱 Пример корректной информации о фото</div>
+                        <div class="iphone-frame">
+                            <div style="background: #eef2f6; border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 16px;">
+                                🖼️ 📍
+                            </div>
+                            <div style="background: #f0fdf4; border-radius: 16px; padding: 16px; border: 1px solid #bbf7d0;">
+                                <div style="font-weight: 600; margin-bottom: 8px;">📍 Местоположение</div>
+                                <div>Москва, Россия</div>
+                                <div style="font-size: 12px; color: #10b981; margin-top: 4px;">Координаты: 55.7558, 37.6173</div>
+                                <div style="margin-top: 12px; background: #eef2f6; height: 80px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #64748b;">
+                                    🗺️ [Карта с местоположением]
+                                </div>
+                            </div>
+                            <div class="visual-title" style="margin-top: 12px; color: #10b981;">✅ Если вы видите карту и координаты — настройка выполнена верно</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Шаг 6 - НОВЫЙ (Что даёт эта настройка) -->
+            <div class="step-card">
+                <div class="step-number-large">6</div>
+                <div class="step-content">
+                    <div class="step-title">Что даёт эта настройка</div>
+                    <div class="benefit-box">
+                        <p>📸 Это обеспечит сохранение координат в каждом снимке, при этом геолокация будет включаться только при съёмке, экономя заряд батареи.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Финальный совет -->
+            <div class="info-card">
+                <p>💡 <strong>Совет:</strong> После выполнения всех шагов перезагрузите телефон, чтобы изменения вступили в силу.</p>
+                <p>📸 Если геолокация не отображается на фото, проверьте, что в настройках камеры (в самом приложении «Камера») включена опция <strong>«Привязка к месту»</strong>.</p>
+            </div>
+        </div>
+        
+        <div class="buttons">
+            <button class="btn btn-primary" id="savePngBtn">📸 Сохранить как PNG</button>
+            <button class="btn btn-secondary" id="printBtn">🖨️ Распечатать</button>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script>
+        document.getElementById('savePngBtn').addEventListener('click', function() {
+            const element = document.getElementById('instruction');
+            const btn = this;
+            btn.textContent = '⏳ Создание...';
+            btn.disabled = true;
+            
+            html2canvas(element, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: false,
+                useCORS: true
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'iphone_geolocation_instruction.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                btn.textContent = '📸 Сохранить как PNG';
+                btn.disabled = false;
+            }).catch(() => {
+                btn.textContent = '📸 Сохранить как PNG';
+                btn.disabled = false;
+                alert('Ошибка при создании изображения');
+            });
+        });
+        
+        document.getElementById('printBtn').addEventListener('click', () => window.print());
+    </script>
+</body>
+</html>
