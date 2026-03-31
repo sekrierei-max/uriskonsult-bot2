@@ -580,7 +580,7 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
                 full_text = article.get('full_text', '')
                 
                 bot_text = (
-                    f"🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹\n"
+                    f"🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹\n"
                     f"📌 **ПОЛНЫЙ ПОСТ СО ССЫЛКАМИ НА НОРМАТИВНЫЕ АКТЫ**\n\n"
                     f"**На тему:** {teaser_title}\n\n"
                     f"{full_text}"
@@ -606,6 +606,44 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
     else:
         await cmd_start(message)
 
+# ============================================
+# АВТОМАТИЧЕСКИЙ СТАРТ ДЛЯ НОВЫХ ПОЛЬЗОВАТЕЛЕЙ
+# ============================================
+
+@dp.message()
+async def auto_start_for_new_user(message: Message, state: FSMContext):
+    """
+    Если пользователь отправляет любое сообщение и у него нет активного состояния,
+    показываем приветственное меню.
+    """
+    current_state = await state.get_state()
+    
+    # Если нет активного состояния и это не команда
+    if current_state is None and not (message.text and message.text.startswith('/')):
+        await send_welcome_post(message, source="auto_start")
+
+# ============================================
+# КОМАНДА /start (обычный)
+# ============================================
+
+@dp.message(Command("start"))
+async def cmd_start(message: Message, state: FSMContext = None):
+    call_id = str(uuid.uuid4())[:8]
+    logger.info(f"🚀 Команда /start ПОЛУЧЕНА. ID: {call_id}, Пользователь: {message.from_user.id}")
+    
+    if state:
+        await state.clear()
+        logger.info(f"🧹 Состояние очищено. ID: {call_id}")
+    
+    await send_welcome_post(message, source=f"cmd_start_{call_id}")
+    
+    if message.from_user.id == config['ADMIN_ID']:
+        admin_text = "🔐 Вы администратор. Используйте /admin для входа в панель управления."
+        await message.answer(admin_text)
+        logger.info(f"👑 Админ-сообщение отправлено. ID: {call_id}")
+    
+    logger.info(f"✅ Команда /start обработана. ID: {call_id}")
+    
 # ============================================
 # КОМАНДА /start (обычный)
 # ============================================
