@@ -647,14 +647,12 @@ async def cmd_help(message: Message):
         "/start - Начать работу\n"
         "/help - Это меню\n"
         "/calculator - Калькулятор ЖКХ\n"
-        "/calculate - То же самое\n"
         "/shop - Магазин договоров\n"
         "/consult - Консультация\n"
         "/free - Бесплатные документы\n"
         "/cases - Кейсы\n\n"
     )
     
-    # Проверяем, является ли пользователь администратором
     is_admin_user = message.from_user.id == config.get('ADMIN_ID', 0)
     
     if is_admin_user:
@@ -676,7 +674,6 @@ async def cmd_help(message: Message):
         )
     
     await message.answer(help_text)
-    logger.info(f"User {message.from_user.id} requested help")
 
 # ============================================
 # КОМАНДА /calculator
