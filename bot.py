@@ -868,13 +868,26 @@ async def process_full_text(message: Message, state: FSMContext):
     if not message.text:
         await message.answer("❌ Пожалуйста, отправьте текст.")
         return
-    await state.update_data(full_text=message.text)
+    
+    # Очищаем текст от метаданных (строки вида "[дата] Имя:")
+    raw_text = message.text
+    lines = raw_text.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        # Пропускаем строки, начинающиеся с [ и содержащие ] и :
+        if not (line.strip().startswith('[') and ']' in line and ':' in line):
+            cleaned_lines.append(line)
+    
+    cleaned_text = '\n'.join(cleaned_lines).strip()
+    
+    await state.update_data(full_text=cleaned_text)
     
     await message.answer(
         "📝 **Шаг 2 из 5:** Введите ЗАГОЛОВОК тизера (для канала):"
     )
     await state.set_state(ArticleStates.teaser_title)
-
+    
 @dp.message(ArticleStates.teaser_title)
 async def process_teaser_title(message: Message, state: FSMContext):
     if not message.text:
