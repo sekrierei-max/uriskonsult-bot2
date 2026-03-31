@@ -933,7 +933,6 @@ async def process_full_text(message: Message, state: FSMContext):
         "🕐 Время указывается МСК"
     )
     await state.set_state(ArticleStates.time)
-
 @dp.message(ArticleStates.time)
 async def process_article_time(message: Message, state: FSMContext):
     try:
@@ -950,11 +949,13 @@ async def process_article_time(message: Message, state: FSMContext):
         
         data = await state.get_data()
         
-        # ДИАГНОСТИКА
-        print(f"🔴🔴🔴 СОХРАНЕНИЕ СТАТЬИ")
-        print(f"🔴 full_text: {data['full_text'][:200]}...")
-        print(f"🔴 teaser_title: {data['teaser_title']}")
-        print(f"🔴 teaser_text: {data['teaser_text'][:200]}...")
+        # ПРОСТАЯ ДИАГНОСТИКА
+        print("=" * 50)
+        print("СОХРАНЕНИЕ СТАТЬИ")
+        print(f"teaser_title: {data.get('teaser_title')}")
+        print(f"teaser_text: {data.get('teaser_text')}")
+        print(f"full_text (первые 200 символов): {data.get('full_text', '')[:200]}")
+        print("=" * 50)
         
         # Сохраняем статью в БД
         article_id = await db.add_article(
