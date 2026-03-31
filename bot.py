@@ -561,10 +561,7 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
     args = command.args
     
     # ========== ОБРАБОТКА СКАЧИВАНИЯ ФАЙЛОВ ==========
-    if args and args.startswith('download_'):
-        file_key = args.replace('download_', '')
-        
-        # ПОЛНЫЙ СЛОВАРЬ СО ВСЕМИ ФАЙЛАМИ
+    
         files_map = {
             # Залив
             "pamyatka_vas_zatopili": {"name": "Памятка: Вас затопили", "file": "Памятка_Вас_затопили.pdf"},
@@ -576,7 +573,7 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
             "pamyatka_stoyanka": {"name": "Памятка: Повреждение на стоянке", "file": "Памятка_Повреждение_на_стоянке.pdf"},
             
             # ЖКХ / УК
-            "pamyatka_ipu": {"name": "Памятка по ИПУ (индивидуальным приборам учета)", "file": "Памятка_ИПУ.pdf"},
+            "pamyatka_ipu": {"name": "Памятка по ИПУ", "file": "Памятка_по_ИПУ.pdf"},
             "pamyatka_odpu": {"name": "Памятка по ОДПУ (общедомовым приборам учета)", "file": "Памятка_ОДПУ_общедомовые_приборы_учета.pdf"},
             "checklist_jkx": {"name": "Чек-лист проверки квитанции и УК", "file": "Чек-лист_проверка_квитанции_и_УК.pdf"},
             
@@ -593,20 +590,15 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
             "akt_universal": {"name": "Универсальный акт", "file": "Универсальный_акт.pdf"},
             
             # Памятки общего характера
-            "pamyatka_geolokacia": {"name": "Памятка: геолокация на фото", "file": "Памятка_геолокация_на_фото.pdf"},
-            "pamyatka_akty": {"name": "Памятка: акты (осмотр, фиксация)", "file": "Памятка_акты.pdf"},
-            "pamyatka_audio": {"name": "Памятка: аудиозапись как доказательство", "file": "Памятка_аудиозапись.pdf"},
-            "pamyatka_raspiska": {"name": "Памятка: расписка о получении денег", "file": "Памятка_расписка.pdf"},
-            "pamyatka_pretensiya": {"name": "Памятка: досудебная претензия", "file": "Памятка_досудебная_претензия.pdf"},
+            "pamyatka_geolokacia": {"name": "Памятка по геолокации", "file": "Памятка_геолокация.pdf"},
+            "pamyatka_akty": {"name": "Памятка по актам с чек-листом", "file": "Памятка_по_Актам_с_чек_листом.pdf"},
+            "pamyatka_audio": {"name": "Памятка по аудиозаписи с чек-листом", "file": "Памятка_аудиозапись_и_чек_лист.pdf"},
+            "pamyatka_raspiska": {"name": "Памятка по расписке", "file": "Памятка_по_расписке.pdf"},
+            "pamyatka_pretensiya": {"name": "Памятка по досудебной претензии", "file": "Памятка_по_претензии.pdf"},
             
-            # ========== НОВЫЕ ФАЙЛЫ ==========
-            # Интерактивные инструкции по геолокации
-            "iphone_instruction": {"name": "Интерактивная инструкция: настройка геолокации на iPhone", "file": "Геолокация_фото_для_айфона.html"},
-            "android_instruction": {"name": "Интерактивная инструкция: настройка геолокации на Android", "file": "Геолокация_фото_для_андроид.html"},
-            
-            # Схемы
-            "iphone_schema": {"name": "Схема настройки геолокации на iPhone", "file": "Схема_геолокации_айфон.html"},
-            "android_schema": {"name": "Схема настройки геолокации на Android", "file": "Схема_геолокации_андроид.html"},
+            # ========== НОВЫЕ ИНТЕРАКТИВНЫЕ ИНСТРУКЦИИ ==========
+            "iphone_geolocation": {"name": "Интерактивная инструкция: настройка геолокации на iPhone", "file": "Геолокация_фото_для_айфона.html"},
+            "android_geolocation": {"name": "Интерактивная инструкция: настройка геолокации на Android", "file": "Геолокация_фото_для_андроид.html"},
             
             # Договоры (из магазина)
             "dogovor1": {"name": "Договор Базовый", "file": "dogovor1.pdf"},
