@@ -599,6 +599,15 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
             "pamyatka_raspiska": {"name": "Памятка: расписка о получении денег", "file": "Памятка_расписка.pdf"},
             "pamyatka_pretensiya": {"name": "Памятка: досудебная претензия", "file": "Памятка_досудебная_претензия.pdf"},
             
+            # ========== НОВЫЕ ФАЙЛЫ ==========
+            # Интерактивные инструкции по геолокации
+            "iphone_instruction": {"name": "Интерактивная инструкция: настройка геолокации на iPhone", "file": "Геолокация_фото_для_айфона.html"},
+            "android_instruction": {"name": "Интерактивная инструкция: настройка геолокации на Android", "file": "Геолокация_фото_для_андроид.html"},
+            
+            # Схемы
+            "iphone_schema": {"name": "Схема настройки геолокации на iPhone", "file": "Схема_геолокации_айфон.html"},
+            "android_schema": {"name": "Схема настройки геолокации на Android", "file": "Схема_геолокации_андроид.html"},
+            
             # Договоры (из магазина)
             "dogovor1": {"name": "Договор Базовый", "file": "dogovor1.pdf"},
             "dogovor2": {"name": "Договор Профи", "file": "dogovor2.pdf"},
