@@ -753,6 +753,9 @@ async def cmd_admin(message: Message):
 # ============================================
 # КОМАНДА /help
 # ============================================
+# ============================================
+# КОМАНДА /help
+# ============================================
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     help_text = (
@@ -788,43 +791,7 @@ async def cmd_help(message: Message):
         )
     
     await message.answer(help_text)
-
-# ============================================
-# КОМАНДА /calculator
-# ============================================
-@dp.message(Command("calculator"))
-async def cmd_calculator(message: Message):
-    text = (
-        "🧮 **Калькулятор коммунальных платежей**\n\n"
-        "Рассчитайте плату за ЖКУ по актуальным тарифам:\n\n"
-        "👉 [Открыть калькулятор](https://jkh-calculator-hrzuucss2p44fwj5bjeappd.streamlit.app)\n\n"
-        "**Что доступно:**\n"
-        "• Выбор города (Геленджик / Пыть-Ях)\n"
-        "• Расчёт воды, электричества, отопления и ТКО\n"
-        "• Обслуживание УК и СОИ (ОДН)\n"
-        "• Сравнение с нормативами\n"
-        "• Нормативные акты в боковой панели\n\n"
-        "📌 Если калькулятор не открывается — напишите мне: @SekrierEI"
-    )
-    await message.answer(text, parse_mode="Markdown")
-
-# ============================================
-# КОМАНДА /calculate
-# ============================================
-@dp.message(Command("calculate"))
-async def cmd_calculate(message: Message):
-    await cmd_calculator(message)
-
-# ============================================
-# КОМАНДА /clear_limits
-# ============================================
-@dp.message(Command("clear_limits"))
-@admin_only
-async def cmd_clear_limits(message: Message, **kwargs):
-    user_message_counts.clear()
-    user_last_reset.clear()
-    await message.answer("✅ Все лимиты сообщений сброшены")
-    logger.info(f"Message limits cleared by admin {message.from_user.id}")
+    logger.info(f"User {message.from_user.id} requested help")
 
 # ============================================
 # КОМАНДА /shop
@@ -856,7 +823,6 @@ async def cmd_cases(message: Message):
 # ============================================
 # КОМАНДА /consult
 # ============================================
-
 @dp.message(Command("consult"))
 async def cmd_consult(message: Message):
     text = "👨‍⚖️ Запись на консультацию\n\nВыберите способ обращения:"
