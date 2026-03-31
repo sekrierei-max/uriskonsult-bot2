@@ -567,11 +567,18 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
             
             article = await db.get_article(article_id)
             
+            # ДИАГНОСТИКА
+            print(f"🔴🔴🔴 DEEP LINK: статья #{article_id}")
+            if article:
+                print(f"🔴 teaser_title: {article.get('teaser_title')}")
+                print(f"🔴 full_text (первые 200 символов): {article.get('full_text', '')[:200]}")
+            else:
+                print(f"🔴 Статья не найдена")
+            
             if article:
                 teaser_title = article.get('teaser_title', 'Статья')
                 full_text = article.get('full_text', '')
                 
-                # Формируем сообщение для бота (разделитель только сверху)
                 bot_text = (
                     f"🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹\n"
                     f"📌 **ПОЛНЫЙ ПОСТ СО ССЫЛКАМИ НА НОРМАТИВНЫЕ АКТЫ**\n\n"
@@ -579,7 +586,6 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
                     f"{full_text}"
                 )
                 
-                # Кнопка возврата
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="🏠 ВЕРНУТЬСЯ В ГЛАВНОЕ МЕНЮ", callback_data="back_to_main")]
                 ])
