@@ -697,8 +697,6 @@ async def cmd_calculator(message: Message):
         "Если у вас возникнут вопросы или предложения — пишите /consult"
     )
     await message.answer(text)
-    logger.info(f"User {message.from_user.id} used /calculator (ready)")
-
 # ============================================
 # КОМАНДА /calculate
 # ============================================
