@@ -853,7 +853,7 @@ async def admin_exit(callback: CallbackQuery, state: FSMContext = None):
     )
 
 # ============================================
-# КОМАНДЫ ДЛЯ РАБОТЫ СО СТАТЬЯМИ
+# КОМАНДЫ ДЛЯ РАБОТЫ СО СТАТЬЯМИ (НОВЫЙ ПОРЯДОК)
 # ============================================
 
 @dp.message(Command("add_article"))
@@ -861,50 +861,39 @@ async def admin_exit(callback: CallbackQuery, state: FSMContext = None):
 async def cmd_add_article(message: Message, state: FSMContext, **kwargs):
     await message.answer(
         "📝 **Добавление новой статьи**\n\n"
-        "**Шаг 1 из 5:** Отправьте ПОЛНЫЙ текст статьи (для бота):"
-    )
-    await state.set_state(ArticleStates.full_text)
-
-@dp.message(ArticleStates.full_text)
-async def process_full_text(message: Message, state: FSMContext):
-    print(f"🔴🔴🔴 ПОЛУЧЕН ТЕКСТ (первые 100 символов): {message.text[:100]}...")
-    
-    if not message.text:
-        await message.answer("❌ Пожалуйста, отправьте текст.")
-        return
-    
-    # Очищаем текст от метаданных (строки вида "[дата] Имя:")
-    raw_text = message.text
-    lines = raw_text.split('\n')
-    cleaned_lines = []
-    
-    for line in lines:
-        # Пропускаем строки, начинающиеся с [ и содержащие ] и :
-        if not (line.strip().startswith('[') and ']' in line and ':' in line):
-            cleaned_lines.append(line)
-    
-    cleaned_text = '\n'.join(cleaned_lines).strip()
-    
-    print(f"🔴 ОЧИЩЕННЫЙ ТЕКСТ (первые 100 символов): {cleaned_text[:100]}...")
-    
-    await state.update_data(full_text=cleaned_text)
-    
-    await message.answer(
-        "📝 **Шаг 2 из 5:** Введите ЗАГОЛОВОК тизера (для канала):"
+        "**Шаг 1 из 5:** Введите ЗАГОЛОВОК тизера (для канала):"
     )
     await state.set_state(ArticleStates.teaser_title)
-    
+
 @dp.message(ArticleStates.teaser_title)
 async def process_teaser_title(message: Message, state: FSMContext):
-    print(f"🔴🔴🔴 ПОЛУЧЕН ЗАГОЛОВОК: {message.text}")
-    
     if not message.text:
         await message.answer("❌ Пожалуйста, отправьте заголовок.")
         return
-    
     await state.update_data(teaser_title=message.text.strip())
     
-    print(f"🔴 ЗАГОЛОВОК СОХРАНЁН, ПЕРЕХОД К ШАГУ 3")
+    await message.answer(
+        "📸 **Шаг 2 из 5:** Отправьте ФОТО для тизера\n\n"
+        "Фото будет прикреплено к посту в канале\n\n"
+        "Если не хотите добавлять фото — отправьте слово **пропустить**"
+    )
+    await state.set_state(ArticleStates.photo)
+
+@dp.message(ArticleStates.photo)
+async def process_article_photo(message: Message, state: FSMContext):
+    if message.photo:
+        photo_file_id = message.photo[-1].file_id
+        await state.update_data(photo_file_id=photo_file_id)
+        await message.answer("✅ Фото сохранено")
+    else:
+        if message.text and message.text.lower() in ['пропустить', 'skip', 'нет']:
+            await state.update_data(photo_file_id=None)
+            await message.answer("⚠️ Фото не добавлено. Продолжаем без фото.")
+        else:
+            await message.answer(
+                "❓ Непонятно. Отправьте ФОТО или напишите **пропустить**"
+            )
+            return
     
     await message.answer(
         "📝 **Шаг 3 из 5:** Введите ТИЗЕР (короткий текст для канала):"
@@ -919,35 +908,28 @@ async def process_teaser_text(message: Message, state: FSMContext):
     await state.update_data(teaser_text=message.text.strip())
     
     await message.answer(
-        "📸 **Шаг 4 из 5:** Отправьте ФОТО для тизера\n\n"
-        "Фото будет прикреплено к посту в канале\n\n"
-        "Если не хотите добавлять фото — отправьте слово **пропустить**"
+        "📄 **Шаг 4 из 5:** Отправьте ПОЛНЫЙ текст статьи (для бота):"
     )
-    await state.set_state(ArticleStates.photo)
+    await state.set_state(ArticleStates.full_text)
 
-@dp.message(ArticleStates.photo)
-async def process_article_photo(message: Message, state: FSMContext):
-    # Обработка фото
-    if message.photo:
-        photo_file_id = message.photo[-1].file_id
-        await state.update_data(photo_file_id=photo_file_id)
-        await message.answer("✅ Фото сохранено")
-    else:
-        # Проверяем, хочет ли пользователь пропустить фото
-        if message.text and message.text.lower() in ['пропустить', 'skip', 'нет']:
-            await state.update_data(photo_file_id=None)
-            await message.answer("⚠️ Фото не добавлено. Продолжаем без фото.")
-        else:
-            # Если отправлен непонятный текст — просим фото или команду пропуска
-            await message.answer(
-                "❓ Непонятно. Отправьте ФОТО или напишите **пропустить**\n\n"
-                "Фото: отправьте изображение\n"
-                "Пропустить: напишите слово **пропустить**"
-            )
-            return
+@dp.message(ArticleStates.full_text)
+async def process_full_text(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Пожалуйста, отправьте текст.")
+        return
     
-    # Переход к шагу 5 (только один раз)
-    await state.set_state(ArticleStates.time)
+    # Очищаем текст от метаданных
+    raw_text = message.text
+    lines = raw_text.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        if not (line.strip().startswith('[') and ']' in line and ':' in line):
+            cleaned_lines.append(line)
+    
+    cleaned_text = '\n'.join(cleaned_lines).strip()
+    
+    await state.update_data(full_text=cleaned_text)
     
     example = datetime.now() + timedelta(hours=1)
     example_str = example.strftime("%d.%m.%Y %H:%M")
@@ -957,6 +939,7 @@ async def process_article_photo(message: Message, state: FSMContext):
         f"Например: {example_str}\n\n"
         "🕐 Время указывается МСК"
     )
+    await state.set_state(ArticleStates.time)
 
 @dp.message(ArticleStates.time)
 async def process_article_time(message: Message, state: FSMContext):
@@ -974,12 +957,6 @@ async def process_article_time(message: Message, state: FSMContext):
         
         data = await state.get_data()
         
-        # ДИАГНОСТИКА
-        print(f"🔴🔴🔴 СОХРАНЕНИЕ СТАТЬИ")
-        print(f"🔴 full_text: {data['full_text'][:200]}...")
-        print(f"🔴 teaser_title: {data['teaser_title']}")
-        print(f"🔴 teaser_text: {data['teaser_text'][:200]}...")
-        
         # Сохраняем статью в БД
         article_id = await db.add_article(
             full_text=data['full_text'],
@@ -989,7 +966,6 @@ async def process_article_time(message: Message, state: FSMContext):
             photo_file_id=data.get('photo_file_id')
         )
         
-        # Генерируем deep link
         deep_link = f"@uriskonsult_bot?start=article_{article_id}"
         
         response = f"✅ **Статья #{article_id} добавлена!**\n\n"
