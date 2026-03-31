@@ -560,6 +560,75 @@ async def send_welcome_post(message: Message, source: str = "send_welcome_post")
 async def cmd_start_deep_link(message: Message, command: CommandObject):
     args = command.args
     
+    # ========== ОБРАБОТКА СКАЧИВАНИЯ ФАЙЛОВ ==========
+    if args and args.startswith('download_'):
+        file_key = args.replace('download_', '')
+        
+        # ПОЛНЫЙ СЛОВАРЬ СО ВСЕМИ ФАЙЛАМИ
+        files_map = {
+            # Залив
+            "pamyatka_vas_zatopili": {"name": "Памятка: Вас затопили", "file": "Памятка_Вас_затопили.pdf"},
+            "pamyatka_vy_zatopili": {"name": "Памятка: Вы затопили", "file": "Памятка_Вы_затопили.pdf"},
+            "akt_zaliva": {"name": "Акт о заливе (шаблон)", "file": "Акт_о_заливе_шаблон.pdf"},
+            
+            # ДТП
+            "pamyatka_dtp": {"name": "Памятка при ДТП", "file": "Памятка_ДТП.pdf"},
+            "pamyatka_stoyanka": {"name": "Памятка: Повреждение на стоянке", "file": "Памятка_Повреждение_на_стоянке.pdf"},
+            
+            # ЖКХ / УК
+            "pamyatka_ipu": {"name": "Памятка по ИПУ (индивидуальным приборам учета)", "file": "Памятка_ИПУ.pdf"},
+            "pamyatka_odpu": {"name": "Памятка по ОДПУ (общедомовым приборам учета)", "file": "Памятка_ОДПУ_общедомовые_приборы_учета.pdf"},
+            "checklist_jkx": {"name": "Чек-лист проверки квитанции и УК", "file": "Чек-лист_проверка_квитанции_и_УК.pdf"},
+            
+            # Аренда/найм
+            "pamyatka_arendator": {"name": "Памятка арендатору с чек-листом", "file": "Памятка_арендатору_с_чек_листом.pdf"},
+            "pamyatka_arendodatel": {"name": "Памятка арендодателю с чек-листом", "file": "Памятка_арендодателю_с_чек_листом.pdf"},
+            "pamyatka_nanimatel": {"name": "Памятка нанимателю с чек-листом", "file": "Памятка_нанимателю_с_чек_листом.pdf"},
+            "pamyatka_naymodatel_social": {"name": "Памятка наймодателю (социальный наем)", "file": "Памятка_наймодателю_с_чек_листом.pdf"},
+            "checklist_arenda": {"name": "Чек-лист для аренды", "file": "Чек-лист_наним_аренд.pdf"},
+            
+            # Документы
+            "pretensiya": {"name": "Претензия досудебная", "file": "Претензия_досудебная.pdf"},
+            "raspiska": {"name": "Расписка о получении денег", "file": "Расписка_о_получении_денег.pdf"},
+            "akt_universal": {"name": "Универсальный акт", "file": "Универсальный_акт.pdf"},
+            
+            # Памятки общего характера
+            "pamyatka_geolokacia": {"name": "Памятка: геолокация на фото", "file": "Памятка_геолокация_на_фото.pdf"},
+            "pamyatka_akty": {"name": "Памятка: акты (осмотр, фиксация)", "file": "Памятка_акты.pdf"},
+            "pamyatka_audio": {"name": "Памятка: аудиозапись как доказательство", "file": "Памятка_аудиозапись.pdf"},
+            "pamyatka_raspiska": {"name": "Памятка: расписка о получении денег", "file": "Памятка_расписка.pdf"},
+            "pamyatka_pretensiya": {"name": "Памятка: досудебная претензия", "file": "Памятка_досудебная_претензия.pdf"},
+            
+            # Договоры (из магазина)
+            "dogovor1": {"name": "Договор Базовый", "file": "dogovor1.pdf"},
+            "dogovor2": {"name": "Договор Профи", "file": "dogovor2.pdf"},
+            "dogovor3": {"name": "Договор Гостиничный", "file": "dogovor3.pdf"},
+            "dogovor4": {"name": "Договор Агентский", "file": "dogovor4.pdf"},
+            "dogovor5": {"name": "Пакет «Всё для аренды»", "file": "pack_all.pdf"},
+        }
+        
+        if file_key in files_map:
+            file_info = files_map[file_key]
+            file_path = os.path.join("files", file_info["file"])
+            
+            if os.path.exists(file_path):
+                try:
+                    document = FSInputFile(file_path)
+                    await message.answer_document(
+                        document,
+                        caption=f"📄 **{file_info['name']}**\n\nФайл готов к скачиванию."
+                    )
+                except Exception as e:
+                    logger.error(f"Ошибка отправки файла: {e}")
+                    await message.answer("❌ Ошибка при отправке файла.")
+            else:
+                await message.answer(f"❌ Файл не найден: {file_info['file']}")
+        else:
+            await message.answer("❌ Ссылка на файл недействительна.")
+        
+        return
+    
+    # ========== ОБРАБОТКА СТАТЕЙ ==========
     if args and args.startswith('article_'):
         try:
             article_id = int(args.replace('article_', ''))
