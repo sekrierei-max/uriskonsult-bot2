@@ -568,15 +568,17 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
             article = await db.get_article(article_id)
             
             if article:
-                # Получаем данные из БД
                 teaser_title = article.get('teaser_title', 'Статья')
                 full_text = article.get('full_text', '')
                 
-                # Формируем сообщение для бота (без ссылки в тексте)
+                # Формируем сообщение для бота с эмодзи-разделителем
                 bot_text = (
+                    f"🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹\n"
                     f"📌 **ПОЛНЫЙ ПОСТ СО ССЫЛКАМИ НА НОРМАТИВНЫЕ АКТЫ**\n\n"
                     f"**На тему:** {teaser_title}\n\n"
-                    f"{full_text}"
+                    f"{full_text}\n\n"
+                    f"🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹\n"
+                    f"🔙 ВЕРНУТЬСЯ В ГЛАВНОЕ МЕНЮ"
                 )
                 
                 # Кнопка возврата
