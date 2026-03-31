@@ -561,7 +561,10 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
     args = command.args
     
     # ========== ОБРАБОТКА СКАЧИВАНИЯ ФАЙЛОВ ==========
-    
+    if args and args.startswith('download_'):
+        file_key = args.replace('download_', '')
+        
+        # ПОЛНЫЙ СЛОВАРЬ СО ВСЕМИ ФАЙЛАМИ
         files_map = {
             # Залив
             "pamyatka_vas_zatopili": {"name": "Памятка: Вас затопили", "file": "Памятка_Вас_затопили.pdf"},
@@ -596,7 +599,7 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
             "pamyatka_raspiska": {"name": "Памятка по расписке", "file": "Памятка_по_расписке.pdf"},
             "pamyatka_pretensiya": {"name": "Памятка по досудебной претензии", "file": "Памятка_по_претензии.pdf"},
             
-            # ========== НОВЫЕ ИНТЕРАКТИВНЫЕ ИНСТРУКЦИИ ==========
+            # Интерактивные инструкции по геолокации
             "iphone_geolocation": {"name": "Интерактивная инструкция: настройка геолокации на iPhone", "file": "Геолокация_фото_для_айфона.html"},
             "android_geolocation": {"name": "Интерактивная инструкция: настройка геолокации на Android", "file": "Геолокация_фото_для_андроид.html"},
             
@@ -627,8 +630,7 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
         else:
             await message.answer("❌ Ссылка на файл недействительна.")
         
-        return
-    
+        return    
     # ========== ОБРАБОТКА СТАТЕЙ ==========
     if args and args.startswith('article_'):
         try:
