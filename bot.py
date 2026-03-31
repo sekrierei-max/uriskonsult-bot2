@@ -950,6 +950,12 @@ async def process_article_time(message: Message, state: FSMContext):
         
         data = await state.get_data()
         
+        # ДИАГНОСТИКА
+        print(f"🔴🔴🔴 СОХРАНЕНИЕ СТАТЬИ")
+        print(f"🔴 full_text: {data['full_text'][:200]}...")
+        print(f"🔴 teaser_title: {data['teaser_title']}")
+        print(f"🔴 teaser_text: {data['teaser_text'][:200]}...")
+        
         # Сохраняем статью в БД
         article_id = await db.add_article(
             full_text=data['full_text'],
