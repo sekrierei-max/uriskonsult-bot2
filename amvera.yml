@@ -5,9 +5,7 @@ meta:
     version: "3.11"
 build:
   requirementsPath: requirements.txt
-  useCache: false
 run:
-  persistenceMount: /data
   scriptName: bot.py
   containerPort: 80
-  servicePort: 80
+  persistenceMount: /data
