@@ -461,8 +461,11 @@ async def catch_all_callbacks(callback: CallbackQuery):
 # WEBHOOK НАСТРОЙКИ
 # ============================================
 async def on_startup_webhook():
-    await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
-    print(f"✅ Вебхук установлен")
+    await bot.set_webhook(
+        url=f"{WEBHOOK_URL}{WEBHOOK_PATH}",
+        allowed_updates=["message", "callback_query"]
+    )
+    print(f"✅ Вебхук установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
 
 async def on_shutdown_webhook():
     await bot.delete_webhook()
