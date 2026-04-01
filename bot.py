@@ -1281,11 +1281,11 @@ async def handle_category(callback: CallbackQuery):
 # ============================================
 # УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ДИАГНОСТИКИ
 # ============================================
-# @dp.callback_query()
-# async def catch_all_callbacks(callback: CallbackQuery):
-    # print(f"🔴🔴🔴 ПОЛУЧЕН CALLBACK: {callback.data}")
-    # logger.info(f"🔴🔴🔴 ПОЛУЧЕН CALLBACK: {callback.data}")
-    # await callback.answer(f"Получен: {callback.data}")
+@dp.callback_query()
+async def catch_all_callbacks(callback: CallbackQuery):
+    print(f"🔴🔴🔴 ПОЛУЧЕН CALLBACK: {callback.data}")
+    logger.info(f"🔴🔴🔴 ПОЛУЧЕН CALLBACK: {callback.data}")
+    await callback.answer(f"Получен: {callback.data}")
 
 # ============================================
 # ОБРАБОТЧИК ВЫБОРА ДОКУМЕНТА
