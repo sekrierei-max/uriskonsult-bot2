@@ -11,6 +11,7 @@ import uuid
 import inspect
 import time
 import signal
+import re
 from datetime import datetime, timedelta
 from collections import defaultdict
 
@@ -73,12 +74,22 @@ FREE_DOCS = {
             2: {"name": "Чек-лист", "file": "Чек-лист_наним_аренд.pdf"}
         }
     },
-    "docs": {
-        "name": "📄 Документы",
+    "pretensiya": {
+        "name": "Претензия досудебная",
         "items": {
-            1: {"name": "Претензия досудебная", "file": "Претензия_досудебная.pdf"},
-            2: {"name": "Расписка о получении денег", "file": "Расписка_о_получении_денег.pdf"},
-            3: {"name": "Универсальный акт", "file": "Универсальный_акт.pdf"}
+            1: {"name": "Претензия досудебная", "file": "Претензия_досудебная.pdf"}
+        }
+    },
+    "raspiska": {
+        "name": "Расписка о получении денег",
+        "items": {
+            1: {"name": "Расписка о получении денег", "file": "Расписка_о_получении_денег.pdf"}
+        }
+    },
+    "akt": {
+        "name": "Универсальный акт",
+        "items": {
+            1: {"name": "Универсальный акт", "file": "Универсальный_акт.pdf"}
         }
     }
 }
@@ -153,7 +164,7 @@ def get_consult_main_keyboard():
     ])
 
 # ============================================
-# КОМАНДА /start
+# КОМАНДЫ
 # ============================================
 async def send_welcome_post(message: Message):
     text = (
@@ -168,9 +179,6 @@ async def send_welcome_post(message: Message):
 async def cmd_start(message: Message):
     await send_welcome_post(message)
 
-# ============================================
-# КОМАНДА /help
-# ============================================
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     help_text = (
@@ -186,9 +194,6 @@ async def cmd_help(message: Message):
     )
     await message.answer(help_text)
 
-# ============================================
-# КОМАНДА /calculator
-# ============================================
 @dp.message(Command("calculator"))
 async def cmd_calculator(message: Message):
     text = (
@@ -198,23 +203,14 @@ async def cmd_calculator(message: Message):
     )
     await message.answer(text, parse_mode="Markdown")
 
-# ============================================
-# КОМАНДА /shop
-# ============================================
 @dp.message(Command("shop"))
 async def cmd_shop(message: Message):
     await message.answer("🛒 **МАГАЗИН ДОГОВОРОВ**\n\nВыберите договор:", reply_markup=get_shop_keyboard())
 
-# ============================================
-# КОМАНДА /free
-# ============================================
 @dp.message(Command("free"))
 async def cmd_free(message: Message):
     await message.answer("📚 **БЕСПЛАТНЫЕ ДОКУМЕНТЫ**\n\nВыберите категорию:", reply_markup=get_free_categories_keyboard())
 
-# ============================================
-# КОМАНДА /cases
-# ============================================
 @dp.message(Command("cases"))
 async def cmd_cases(message: Message):
     keyboard = get_cases_keyboard()
@@ -223,15 +219,12 @@ async def cmd_cases(message: Message):
     else:
         await message.answer("📭 Пока нет опубликованных кейсов.")
 
-# ============================================
-# КОМАНДА /consult
-# ============================================
 @dp.message(Command("consult"))
 async def cmd_consult(message: Message):
     await message.answer("👨‍⚖️ Запись на консультацию\n\nВыберите способ обращения:", reply_markup=get_consult_main_keyboard())
 
 # ============================================
-# ОБРАБОТЧИКИ КНОПОК
+# ОБРАБОТЧИКИ ГЛАВНЫХ КНОПОК
 # ============================================
 @dp.callback_query(lambda c: c.data == "menu_cases")
 async def menu_cases(callback: CallbackQuery):
@@ -264,7 +257,7 @@ async def back_to_main(callback: CallbackQuery):
     await callback.answer()
 
 # ============================================
-# ОБРАБОТЧИК КАТЕГОРИЙ БЕСПЛАТНЫХ ДОКУМЕНТОВ
+# ОБРАБОТЧИКИ КАТЕГОРИЙ БЕСПЛАТНЫХ ДОКУМЕНТОВ
 # ============================================
 @dp.callback_query(lambda c: c.data.startswith("cat_"))
 async def handle_category(callback: CallbackQuery):
@@ -282,7 +275,7 @@ async def handle_category(callback: CallbackQuery):
     await callback.message.answer(f"📁 **{category['name']}**\n\nВыберите документ:", reply_markup=builder.as_markup())
 
 # ============================================
-# ОБРАБОТЧИК ВЫБОРА ДОКУМЕНТА
+# ОБРАБОТЧИКИ ВЫБОРА ДОКУМЕНТА
 # ============================================
 @dp.callback_query(lambda c: c.data.startswith("doc_"))
 async def handle_document(callback: CallbackQuery):
@@ -318,7 +311,7 @@ async def back_to_free(callback: CallbackQuery):
     await cmd_free(callback.message)
 
 # ============================================
-# ОБРАБОТЧИК МАГАЗИНА ДОГОВОРОВ
+# ОБРАБОТЧИКИ МАГАЗИНА ДОГОВОРОВ
 # ============================================
 class ContractStates(StatesGroup):
     waiting_for_phone = State()
@@ -356,7 +349,6 @@ async def request_contract(callback: CallbackQuery, state: FSMContext):
 @dp.message(ContractStates.waiting_for_phone)
 async def process_contract_phone(message: Message, state: FSMContext):
     phone = message.text.strip()
-    import re
     if not re.search(r'^(\+7|8)?[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$', phone):
         await message.answer("❌ Неверный формат. Пример: +7 123 456-78-90")
         return
@@ -384,6 +376,28 @@ async def process_contract_comment(message: Message, state: FSMContext):
 async def back_to_shop(callback: CallbackQuery):
     await callback.answer()
     await cmd_shop(callback.message)
+
+# ============================================
+# ОБРАБОТЧИКИ КЕЙСОВ
+# ============================================
+@dp.callback_query(lambda c: c.data.startswith("case_"))
+async def handle_case(callback: CallbackQuery):
+    case_id = int(callback.data.split("_")[1])
+    case = cases_db.get(case_id)
+    if not case:
+        await callback.answer("Кейс не найден", show_alert=True)
+        return
+    await callback.answer()
+    case_text = (
+        f"📂 **{case['title']}**\n\n"
+        f"📅 **Дата:** {case['date']}\n"
+        f"📌 **Категория:** {case['category']}\n\n"
+        f"**Ситуация:**\n{case['situation']}\n\n"
+        f"**Вопрос:**\n{case['question']}\n\n"
+        f"**Решение:**\n{case['solution']}\n\n"
+        f"**Результат:**\n{case['result']}"
+    )
+    await callback.message.answer(case_text)
 
 # ============================================
 # ОБРАБОТЧИКИ КОНСУЛЬТАЦИЙ
@@ -453,176 +467,3 @@ app.on_shutdown.append(lambda _: on_shutdown_webhook())
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=PORT)
-    
-# ============================================
-# ПЛАНИРОВЩИК С ПУБЛИКАЦИЕЙ ПОСТОВ (УПРОЩЁННАЯ ВЕРСИЯ)
-# ============================================
-
-async def run_scheduler():
-    """Функция планировщика, запускаемая в фоне"""
-    logger.info("🚀 Планировщик запущен")
-    
-    while True:
-        try:
-            # Проверяем каждые 15 секунд
-            await asyncio.sleep(15)
-            
-            now_utc = datetime.now()
-            logger.info(f"⏰ Проверка постов в {now_utc.strftime('%H:%M:%S')} UTC")
-            
-            # Получаем все неопубликованные статьи
-            all_articles = await db.get_articles_list()
-            posts_to_publish = []
-            
-            for article in all_articles:
-                if article.get('published'):
-                    continue
-                
-                teaser_time_msk = article.get('teaser_time')
-                if not teaser_time_msk:
-                    continue
-                
-                teaser_time_utc = teaser_time_msk - timedelta(hours=3)
-                
-                if teaser_time_utc <= now_utc:
-                    posts_to_publish.append(article)
-                    logger.info(f"📊 Статья #{article['id']} ГОТОВА к публикации!")
-            
-            # Публикуем
-            for post in posts_to_publish:
-                try:
-                    channel = config['CHANNEL_ID']
-                    
-                    post_text = (
-                        f"📌 **ТЕМА ДНЯ**\n\n"
-                        f"**{post['teaser_title']}**\n\n"
-                        f"{post['teaser_text']}\n\n"
-                        f"**ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ**\n"
-                        f"https://t.me/uriskonsult_test_bot?start=article_{post['id']}"
-                    )
-                    
-                    photo_file_id = post.get('teaser_photo')
-                    logger.info(f"📸 Фото для статьи #{post['id']}: {photo_file_id}")
-                    
-                    if photo_file_id:
-                        await bot.send_photo(
-                            chat_id=channel,
-                            photo=photo_file_id,
-                            caption=post_text,
-                            parse_mode='HTML'
-                        )
-                        logger.info(f"✅ Пост #{post['id']} опубликован С ФОТО")
-                    else:
-                        await bot.send_message(
-                            chat_id=channel,
-                            text=post_text,
-                            parse_mode='HTML'
-                        )
-                        logger.info(f"✅ Пост #{post['id']} опубликован БЕЗ ФОТО")
-                    
-                    # Помечаем как опубликованное
-                    await db.update_post_status(post['id'], 'published')
-                    
-                except Exception as e:
-                    logger.error(f"❌ Ошибка публикации поста #{post['id']}: {e}")
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка в планировщике: {e}")
-            await asyncio.sleep(10)
-            
-# ============================================
-# СЛЕДУЮЩИЙ БЛОК (WEBHOOK НАСТРОЙКИ)
-# ============================================
-
-import json
-from aiohttp import web
-
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-WEBHOOK_PATH = "/webhook"
-PORT = int(os.getenv("PORT", 80))
-
-@web.middleware
-async def log_requests(request, handler):
-    print(f"\n🔴🔴🔴 ПОЛУЧЕН HTTP-ЗАПРОС: {request.method} {request.path}")
-    print(f"🔴 Headers: {dict(request.headers)}")
-    try:
-        body = await request.text()
-        if body:
-            body_preview = body[:500] + "..." if len(body) > 500 else body
-            print(f"🔴 Body (первые 500 символов): {body_preview}")
-            if 'application/json' in request.headers.get('Content-Type', ''):
-                try:
-                    json_body = json.loads(body)
-                    print(f"🔴 JSON структура: {json.dumps(json_body, indent=2, ensure_ascii=False)[:500]}")
-                except:
-                    pass
-    except Exception as e:
-        print(f"🔴 Не удалось прочитать тело запроса: {e}")
-    response = await handler(request)
-    print(f"🔴 Ответ: {response.status}")
-    return response
-
-async def handle_root(request):
-    return web.Response(
-        text="✅ Бот работает! Webhook endpoint: /webhook\n"
-             f"📊 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-             f"🔗 URL для вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}"
-    )
-
-async def handle_health(request):
-    return web.Response(text="OK", status=200)
-
-async def on_startup_webhook():
-    print("\n🚀🚀🚀 ЗАПУСК WEBHOOK НАСТРОЙКИ")
-    
-    if not WEBHOOK_URL:
-        logger.error("❌ WEBHOOK_URL не задан!")
-        print("❌ WEBHOOK_URL не задан!")
-        return
-    
-    print(f"📌 Устанавливаем вебхук на: {WEBHOOK_URL}{WEBHOOK_PATH}")
-    
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("✅ Старый вебхук удалён")
-    
-    await bot.set_webhook(
-    url=f"{WEBHOOK_URL}{WEBHOOK_PATH}",
-    allowed_updates=["message", "callback_query"]
-)
-    print(f"✅ Вебхук установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
-    
-    webhook_info = await bot.get_webhook_info()
-    print(f"📊 Информация о вебхуке:")
-    print(f"   URL: {webhook_info.url}")
-    print(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
-    print(f"   Последняя ошибка: {webhook_info.last_error_message}")
-    
-    asyncio.create_task(run_scheduler())
-    asyncio.create_task(reset_limits_daily())
-    
-    await db.connect()
-    
-    logger.info("✅ Бот готов к работе через webhook")
-    print("✅ Бот готов к работе через webhook")
-
-async def on_shutdown_webhook():
-    print("\n🛑🛑🛑 ОСТАНОВКА WEBHOOK")
-    await bot.delete_webhook()
-    print("✅ Webhook удален")
-    
-    if hasattr(db, 'pool') and db.pool:
-        await db.pool.close()
-    
-    await bot.session.close()
-    logger.info("👋 Бот остановлен")
-    print("👋 Бот остановлен")
-
-app = web.Application(middlewares=[log_requests])
-app.router.add_get('/', handle_root)
-app.router.add_get('/health', handle_health)
-
-print(f"📌 Регистрируем обработчик вебхуков на путь: {WEBHOOK_PATH}")
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-
-app.on_startup.append(lambda _: on_startup_webhook())
-app.on_shutdown.append(lambda _: on_shutdown_webhook())
