@@ -194,6 +194,18 @@ async def cmd_help(message: Message):
     )
     await message.answer(help_text)
 
+@dp.message(Command("webhook_info"))
+@admin_only
+async def cmd_webhook_info(message: Message):
+    info = await bot.get_webhook_info()
+    await message.answer(
+        f"📊 **Информация о вебхуке**\n\n"
+        f"🔗 URL: {info.url}\n"
+        f"📦 Ожидающих обновлений: {info.pending_update_count}\n"
+        f"📝 Разрешённые обновления: {info.allowed_updates}\n"
+        f"⚠️ Последняя ошибка: {info.last_error_message}"
+    )
+
 @dp.message(Command("calculator"))
 async def cmd_calculator(message: Message):
     text = (
