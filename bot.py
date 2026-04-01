@@ -11,14 +11,19 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 
 from src.core.config import config
 from src.core.logger import setup_logger
-from database import db
 
 logger = setup_logger('bot')
 bot = Bot(token=config['BOT_TOKEN'])
 dp = Dispatcher(storage=MemoryStorage())
+
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_PATH = "/webhook"
+PORT = int(os.getenv("PORT", 80))
 
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
@@ -28,11 +33,21 @@ async def cmd_start(message: Message):
 async def cmd_help(message: Message):
     await message.answer("✅ Бот работает! Команда /help получена.\n\nДоступные команды:\n/start\n/help")
 
-async def main():
-    await dp.start_polling(bot)
+async def on_startup_webhook():
+    await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
+    print(f"✅ Вебхук установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
+
+async def on_shutdown_webhook():
+    await bot.delete_webhook()
+    print("✅ Webhook удален")
+
+app = web.Application()
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+app.on_startup.append(lambda _: on_startup_webhook())
+app.on_shutdown.append(lambda _: on_shutdown_webhook())
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    web.run_app(app, host="0.0.0.0", port=PORT)
 
 # ============================================
 # ФУНКЦИИ ДЛЯ РАБОТЫ С ФОТО
