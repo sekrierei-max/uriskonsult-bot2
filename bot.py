@@ -5,33 +5,34 @@
 """
 
 import asyncio
-import logging
-import sys
-import time
-import uuid
-import inspect
 import os
-import signal
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
-from collections import defaultdict
-
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command, CommandStart, CommandObject
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+from datetime import datetime
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.exceptions import TelegramBadRequest
-
-from aiohttp import web
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 
 from src.core.config import config
 from src.core.logger import setup_logger
 from database import db
-from models import Article, ScheduledPost
+
+logger = setup_logger('bot')
+bot = Bot(token=config['BOT_TOKEN'])
+dp = Dispatcher(storage=MemoryStorage())
+
+@dp.message(Command("start"))
+async def cmd_start(message: Message):
+    await message.answer("✅ Бот работает! Команда /start получена.")
+
+@dp.message(Command("help"))
+async def cmd_help(message: Message):
+    await message.answer("✅ Бот работает! Команда /help получена.\n\nДоступные команды:\n/start\n/help")
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
 # ============================================
 # ФУНКЦИИ ДЛЯ РАБОТЫ С ФОТО
