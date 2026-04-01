@@ -755,6 +755,7 @@ async def cmd_admin(message: Message):
 # ============================================
 # КОМАНДА /help
 # ============================================
+
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     help_text = (
