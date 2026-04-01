@@ -448,6 +448,14 @@ async def cmd_cancel(message: Message, state: FSMContext):
         return
     await state.clear()
     await message.answer("✅ Действие отменено.")
+# ============================================
+# УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК CALLBACK (ДЛЯ ДИАГНОСТИКИ)
+# ============================================
+@dp.callback_query()
+async def catch_all_callbacks(callback: CallbackQuery):
+    print(f"🔴🔴🔴 ПОЛУЧЕН CALLBACK: {callback.data}")
+    logger.info(f"🔴🔴🔴 ПОЛУЧЕН CALLBACK: {callback.data}")
+    await callback.answer(f"Получен: {callback.data}")
 
 # ============================================
 # WEBHOOK НАСТРОЙКИ
