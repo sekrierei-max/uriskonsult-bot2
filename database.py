@@ -1,20 +1,13 @@
-"""
-Тестовая база данных для планировщика (в памяти)
-"""
-import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
-
-logger = logging.getLogger('bot')
-
 class Database:
     def __init__(self):
         self.articles = {}  # Хранилище статей в памяти
         self.next_id = 1    # Счётчик для ID статей
     
     async def connect(self):
-        """Подключение к БД (заглушка)"""
+        """Подключение к БД (заглушка — без PostgreSQL)"""
         logger.info("📦 Тестовая БД подключена (в памяти)")
+        # Не создаём pool, так как используем тестовую БД
+        self.pool = None
     
     async def add_article(self, full_text: str, teaser_title: str, teaser_text: str, publish_time: datetime, photo_file_id: str = None) -> int:
         """
