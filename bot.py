@@ -1667,287 +1667,31 @@ async def run_scheduler():
             await asyncio.sleep(10)
 
 # ============================================
-# СЛЕДУЮЩИЙ БЛОК (WEBHOOK НАСТРОЙКИ)
+# ЗАПУСК БОТА (LONG POLLING - СТАБИЛЬНО)
 # ============================================
-
-import json
-from aiohttp import web
-
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-WEBHOOK_PATH = "/webhook"
-PORT = int(os.getenv("PORT", 80))
-
-@web.middleware
-async def log_requests(request, handler):
-    print(f"\n🔴🔴🔴 ПОЛУЧЕН HTTP-ЗАПРОС: {request.method} {request.path}")
-    print(f"🔴 Headers: {dict(request.headers)}")
-    try:
-        body = await request.text()
-        if body:
-            body_preview = body[:500] + "..." if len(body) > 500 else body
-            print(f"🔴 Body (первые 500 символов): {body_preview}")
-            if 'application/json' in request.headers.get('Content-Type', ''):
-                try:
-                    json_body = json.loads(body)
-                    print(f"🔴 JSON структура: {json.dumps(json_body, indent=2, ensure_ascii=False)[:500]}")
-                except:
-                    pass
-    except Exception as e:
-        print(f"🔴 Не удалось прочитать тело запроса: {e}")
-    response = await handler(request)
-    print(f"🔴 Ответ: {response.status}")
-    return response
-
-async def handle_root(request):
-    return web.Response(
-        text="✅ Бот работает! Webhook endpoint: /webhook\n"
-             f"📊 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-             f"🔗 URL для вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}"
-    )
-
-async def handle_health(request):
-    return web.Response(text="OK", status=200)
-
-async def on_startup_webhook():
-    print("\n🚀🚀🚀 ЗАПУСК WEBHOOK НАСТРОЙКИ")
-    
-    if not WEBHOOK_URL:
-        logger.error("❌ WEBHOOK_URL не задан!")
-        print("❌ WEBHOOK_URL не задан!")
-        return
-    
-    print(f"📌 Устанавливаем вебхук на: {WEBHOOK_URL}{WEBHOOK_PATH}")
-    
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("✅ Старый вебхук удалён")
-    
-    await bot.set_webhook(
-        url=f"{WEBHOOK_URL}{WEBHOOK_PATH}",
-        allowed_updates=["message", "callback_query"]
-    )
-    print(f"✅ Вебхук установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
-    
-    webhook_info = await bot.get_webhook_info()
-    print(f"📊 Информация о вебхуке:")
-    print(f"   URL: {webhook_info.url}")
-    print(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
-    print(f"   Последняя ошибка: {webhook_info.last_error_message}")
-    
-    asyncio.create_task(run_scheduler())
-    asyncio.create_task(reset_limits_daily())
-    
-    await db.connect()
-    
-    logger.info("✅ Бот готов к работе через webhook")
-    print("✅ Бот готов к работе через webhook")
-
-async def on_shutdown_webhook():
-    print("\n🛑🛑🛑 ОСТАНОВКА WEBHOOK")
-    await bot.delete_webhook()
-    print("✅ Webhook удален")
-    
-    if hasattr(db, 'pool') and db.pool:
-        await db.pool.close()
-    
-    await bot.session.close()
-    logger.info("👋 Бот остановлен")
-    print("👋 Бот остановлен")
-
-app = web.Application(middlewares=[log_requests])
-app.router.add_get('/', handle_root)
-app.router.add_get('/health', handle_health)
-
-print(f"📌 Регистрируем обработчик вебхуков на путь: {WEBHOOK_PATH}")
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-
-app.on_startup.append(lambda _: on_startup_webhook())
-app.on_shutdown.append(lambda _: on_shutdown_webhook())
-
 if __name__ == "__main__":
-    if not WEBHOOK_URL:
-        logger.critical("❌ WEBHOOK_URL не задан!")
-        print("❌ WEBHOOK_URL не задан!")
-        sys.exit(1)
+    print("🚀 ЗАПУСК БОТА В РЕЖИМЕ LONG POLLING")
     
-    print(f"\n🚀 ЗАПУСК ВЕБ-СЕРВЕРА")
-    print(f"📌 Порт: {PORT}")
-    print(f"📌 Хост: 0.0.0.0")
-    print(f"📌 Домен: {WEBHOOK_URL}")
-    print(f"📌 Путь вебхука: {WEBHOOK_PATH}")
-    print(f"📌 Полный URL вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}")
+    async def main():
+        # Удаляем вебхук, чтобы Telegram не пытался стучаться
+        await bot.delete_webhook(drop_pending_updates=True)
+        print("✅ Вебхук удалён")
+        
+        # Запускаем планировщик и защиту от спама в фоне
+        asyncio.create_task(run_scheduler())
+        asyncio.create_task(reset_limits_daily())
+        
+        # Подключаем базу данных
+        await db.connect()
+        print("✅ База данных подключена")
+        
+        # Запускаем поллинг
+        print("✅ Бот готов, слушаю команды...")
+        await dp.start_polling(bot)
     
-    logger.info(f"🚀 Запуск веб-сервера на порту {PORT}")
-    web.run_app(app, host="0.0.0.0", port=PORT)
-    
-# ============================================
-# ПЛАНИРОВЩИК С ПУБЛИКАЦИЕЙ ПОСТОВ (УПРОЩЁННАЯ ВЕРСИЯ)
-# ============================================
-
-async def run_scheduler():
-    """Функция планировщика, запускаемая в фоне"""
-    logger.info("🚀 Планировщик запущен")
-    
-    while True:
-        try:
-            # Проверяем каждые 15 секунд
-            await asyncio.sleep(15)
-            
-            now_utc = datetime.now()
-            logger.info(f"⏰ Проверка постов в {now_utc.strftime('%H:%M:%S')} UTC")
-            
-            # Получаем все неопубликованные статьи
-            all_articles = await db.get_articles_list()
-            posts_to_publish = []
-            
-            for article in all_articles:
-                if article.get('published'):
-                    continue
-                
-                teaser_time_msk = article.get('teaser_time')
-                if not teaser_time_msk:
-                    continue
-                
-                teaser_time_utc = teaser_time_msk - timedelta(hours=3)
-                
-                if teaser_time_utc <= now_utc:
-                    posts_to_publish.append(article)
-                    logger.info(f"📊 Статья #{article['id']} ГОТОВА к публикации!")
-            
-            # Публикуем
-            for post in posts_to_publish:
-                try:
-                    channel = config['CHANNEL_ID']
-                    
-                    post_text = (
-                        f"📌 **ТЕМА ДНЯ**\n\n"
-                        f"**{post['teaser_title']}**\n\n"
-                        f"{post['teaser_text']}\n\n"
-                        f"**ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ**\n"
-                        f"https://t.me/uriskonsult_test_bot?start=article_{post['id']}"
-                    )
-                    
-                    photo_file_id = post.get('teaser_photo')
-                    logger.info(f"📸 Фото для статьи #{post['id']}: {photo_file_id}")
-                    
-                    if photo_file_id:
-                        await bot.send_photo(
-                            chat_id=channel,
-                            photo=photo_file_id,
-                            caption=post_text,
-                            parse_mode='HTML'
-                        )
-                        logger.info(f"✅ Пост #{post['id']} опубликован С ФОТО")
-                    else:
-                        await bot.send_message(
-                            chat_id=channel,
-                            text=post_text,
-                            parse_mode='HTML'
-                        )
-                        logger.info(f"✅ Пост #{post['id']} опубликован БЕЗ ФОТО")
-                    
-                    # Помечаем как опубликованное
-                    await db.update_post_status(post['id'], 'published')
-                    
-                except Exception as e:
-                    logger.error(f"❌ Ошибка публикации поста #{post['id']}: {e}")
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка в планировщике: {e}")
-            await asyncio.sleep(10)
-            
-# ============================================
-# СЛЕДУЮЩИЙ БЛОК (WEBHOOK НАСТРОЙКИ)
-# ============================================
-
-import json
-from aiohttp import web
-
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-WEBHOOK_PATH = "/webhook"
-PORT = int(os.getenv("PORT", 80))
-
-@web.middleware
-async def log_requests(request, handler):
-    print(f"\n🔴🔴🔴 ПОЛУЧЕН HTTP-ЗАПРОС: {request.method} {request.path}")
-    print(f"🔴 Headers: {dict(request.headers)}")
     try:
-        body = await request.text()
-        if body:
-            body_preview = body[:500] + "..." if len(body) > 500 else body
-            print(f"🔴 Body (первые 500 символов): {body_preview}")
-            if 'application/json' in request.headers.get('Content-Type', ''):
-                try:
-                    json_body = json.loads(body)
-                    print(f"🔴 JSON структура: {json.dumps(json_body, indent=2, ensure_ascii=False)[:500]}")
-                except:
-                    pass
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("🛑 Бот остановлен")
     except Exception as e:
-        print(f"🔴 Не удалось прочитать тело запроса: {e}")
-    response = await handler(request)
-    print(f"🔴 Ответ: {response.status}")
-    return response
-
-async def handle_root(request):
-    return web.Response(
-        text="✅ Бот работает! Webhook endpoint: /webhook\n"
-             f"📊 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-             f"🔗 URL для вебхука: {WEBHOOK_URL}{WEBHOOK_PATH}"
-    )
-
-async def handle_health(request):
-    return web.Response(text="OK", status=200)
-
-async def on_startup_webhook():
-    print("\n🚀🚀🚀 ЗАПУСК WEBHOOK НАСТРОЙКИ")
-    
-    if not WEBHOOK_URL:
-        logger.error("❌ WEBHOOK_URL не задан!")
-        print("❌ WEBHOOK_URL не задан!")
-        return
-    
-    print(f"📌 Устанавливаем вебхук на: {WEBHOOK_URL}{WEBHOOK_PATH}")
-    
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("✅ Старый вебхук удалён")
-    
-    await bot.set_webhook(
-    url=f"{WEBHOOK_URL}{WEBHOOK_PATH}",
-    allowed_updates=["message", "callback_query"]
-)
-    print(f"✅ Вебхук установлен на {WEBHOOK_URL}{WEBHOOK_PATH}")
-    
-    webhook_info = await bot.get_webhook_info()
-    print(f"📊 Информация о вебхуке:")
-    print(f"   URL: {webhook_info.url}")
-    print(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
-    print(f"   Последняя ошибка: {webhook_info.last_error_message}")
-    
-    asyncio.create_task(run_scheduler())
-    asyncio.create_task(reset_limits_daily())
-    
-    await db.connect()
-    
-    logger.info("✅ Бот готов к работе через webhook")
-    print("✅ Бот готов к работе через webhook")
-
-async def on_shutdown_webhook():
-    print("\n🛑🛑🛑 ОСТАНОВКА WEBHOOK")
-    await bot.delete_webhook()
-    print("✅ Webhook удален")
-    
-    if hasattr(db, 'pool') and db.pool:
-        await db.pool.close()
-    
-    await bot.session.close()
-    logger.info("👋 Бот остановлен")
-    print("👋 Бот остановлен")
-
-app = web.Application(middlewares=[log_requests])
-app.router.add_get('/', handle_root)
-app.router.add_get('/health', handle_health)
-
-print(f"📌 Регистрируем обработчик вебхуков на путь: {WEBHOOK_PATH}")
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-
-app.on_startup.append(lambda _: on_startup_webhook())
-app.on_shutdown.append(lambda _: on_shutdown_webhook())
+        print(f"❌ Критическая ошибка: {e}")
