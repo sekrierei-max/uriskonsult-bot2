@@ -1635,7 +1635,7 @@ async def run_scheduler():
             for post in posts_to_publish:
                 try:
                     channel = config['CHANNEL_ID']
-                    
+                                        
                     post_text = (
                         f"📌 **ТЕМА ДНЯ**\n\n"
                         f"**{post['teaser_title']}**\n\n"
