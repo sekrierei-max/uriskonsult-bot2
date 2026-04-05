@@ -1641,7 +1641,7 @@ async def run_scheduler():
                         f"**{post['teaser_title']}**\n\n"
                         f"{post['teaser_text']}\n\n"
                         f"**ЧИТАТЬ ПОЛНОСТЬЮ В БОТЕ**\n"
-                        f"https://t.me/uriskonsult_test_bot?start=article_{post['id']}"
+                        f"https://t.me/uriskonsult_bot?start=article_{post['id']}"
                     )
                     
                     photo_file_id = post.get('teaser_photo')
