@@ -1669,6 +1669,19 @@ async def run_scheduler():
 # ============================================
 # ЗАПУСК БОТА (LONG POLLING - СТАБИЛЬНО)
 # ============================================
+
+@dp.message(Command("test_link"))
+async def cmd_test_link(message: Message):
+    """Проверка Deep Linking"""
+    await message.answer(
+        "🔗 Проверка Deep Linking\n\n"
+        "Отправьте вручную команду:\n"
+        "`/start article_1`\n\n"
+        "Если после этого бот покажет статью — проблема в ссылке.\n"
+        "Если не покажет — проблема в функции cmd_start_deep_link.",
+        parse_mode="Markdown"
+    )
+
 if __name__ == "__main__":
     print("🚀 ЗАПУСК БОТА В РЕЖИМЕ LONG POLLING")
     
