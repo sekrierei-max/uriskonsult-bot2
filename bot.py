@@ -1687,7 +1687,18 @@ async def cmd_test_link(message: Message):
         "Если не покажет — проблема в функции cmd_start_deep_link.",
         parse_mode="Markdown"
     )
-
+@dp.message(Command("show_admin"))
+async def cmd_show_admin(message: Message):
+    """Показывает, какой ADMIN_ID загружен в config"""
+    admin_id = config.get('ADMIN_ID')
+    await message.answer(
+        f"🔍 **Диагностика прав администратора**\n\n"
+        f"`ADMIN_ID` в config: `{admin_id}`\n"
+        f"Ваш Telegram ID: `{message.from_user.id}`\n\n"
+        f"Если цифры не совпадают — бот не видит вас как админа.\n"
+        f"Если `ADMIN_ID` = `None` — переменная не загружена.",
+        parse_mode="Markdown"
+    )
 if __name__ == "__main__":
     print("🚀 ЗАПУСК БОТА В РЕЖИМЕ LONG POLLING")
     
