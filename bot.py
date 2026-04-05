@@ -565,19 +565,24 @@ async def send_welcome_post(message: Message, source: str = "send_welcome_post")
 @dp.message(CommandStart(deep_link=True))
 async def cmd_start_deep_link(message: Message, command: CommandObject):
     args = command.args
+    print(f"🔍 ДИАГНОСТИКА: получен args = {args}")
+    logger.info(f"🔍 ДИАГНОСТИКА: получен args = {args}")
     
     if args and args.startswith('article_'):
         try:
             article_id = int(args.replace('article_', ''))
-            logger.info(f"Deep link access to article {article_id} by user {message.from_user.id}")
+            print(f"🔍 ДИАГНОСТИКА: ищем статью #{article_id}")
+            logger.info(f"🔍 ДИАГНОСТИКА: ищем статью #{article_id}")
             
             article = await db.get_article(article_id)
+            
+            print(f"🔍 ДИАГНОСТИКА: результат get_article = {article is not None}")
+            logger.info(f"🔍 ДИАГНОСТИКА: результат get_article = {article is not None}")
             
             if article:
                 teaser_title = article.get('teaser_title', 'Статья')
                 full_text = article.get('full_text', '')
                 
-                # Формируем сообщение для бота (разделитель только сверху)
                 bot_text = (
                     f"🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹\n"
                     f"📌 **ПОЛНЫЙ ПОСТ СО ССЫЛКАМИ НА НОРМАТИВНЫЕ АКТЫ**\n\n"
@@ -585,20 +590,21 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
                     f"{full_text}"
                 )
                 
-                # Кнопка возврата
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="🏠 ВЕРНУТЬСЯ В ГЛАВНОЕ МЕНЮ", callback_data="back_to_main")]
                 ])
                 
                 await message.answer(bot_text, parse_mode="HTML", reply_markup=keyboard)
-                
+                print(f"✅ Статья #{article_id} успешно отправлена")
             else:
+                print(f"❌ Статья #{article_id} не найдена в БД")
                 await message.answer("❌ Статья не найдена или была удалена.")
                 
         except ValueError:
             await message.answer("❌ Неверная ссылка на статью.")
         except Exception as e:
-            logger.error(f"Error in deep link processing: {e}")
+            print(f"❌ Ошибка: {e}")
+            logger.error(f"Error in deep link: {e}")
             await message.answer("❌ Произошла ошибка при загрузке статьи.")
     
     elif args == 'consult':
