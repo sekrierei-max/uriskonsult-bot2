@@ -768,6 +768,7 @@ class ArticleStates(StatesGroup):
 # ============================================
 @dp.callback_query(lambda c: c.data == "admin_add_article")
 async def admin_add_article(callback: CallbackQuery, state: FSMContext):
+    print(f"🔴🔴🔴 КНОПКА {callback.data} нажата пользователем {callback.from_user.id}, is_admin={is_admin(callback.from_user.id)}, config['ADMIN_ID']={config['ADMIN_ID']}")
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
@@ -776,6 +777,7 @@ async def admin_add_article(callback: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(lambda c: c.data == "admin_list_articles")
 async def admin_list_articles(callback: CallbackQuery, state: FSMContext = None):
+    print(f"🔴🔴🔴 КНОПКА {callback.data} нажата пользователем {callback.from_user.id}, is_admin={is_admin(callback.from_user.id)}, config['ADMIN_ID']={config['ADMIN_ID']}")
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
@@ -784,6 +786,7 @@ async def admin_list_articles(callback: CallbackQuery, state: FSMContext = None)
 
 @dp.callback_query(lambda c: c.data == "admin_del_article")
 async def admin_del_article(callback: CallbackQuery, state: FSMContext = None):
+    print(f"🔴🔴🔴 КНОПКА {callback.data} нажата пользователем {callback.from_user.id}, is_admin={is_admin(callback.from_user.id)}, config['ADMIN_ID']={config['ADMIN_ID']}")
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
@@ -797,6 +800,7 @@ async def admin_del_article(callback: CallbackQuery, state: FSMContext = None):
 
 @dp.callback_query(lambda c: c.data == "admin_edit_article")
 async def admin_edit_article(callback: CallbackQuery, state: FSMContext = None):
+    print(f"🔴🔴🔴 КНОПКА {callback.data} нажата пользователем {callback.from_user.id}, is_admin={is_admin(callback.from_user.id)}, config['ADMIN_ID']={config['ADMIN_ID']}")
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
@@ -810,6 +814,7 @@ async def admin_edit_article(callback: CallbackQuery, state: FSMContext = None):
 
 @dp.callback_query(lambda c: c.data == "admin_status")
 async def admin_status(callback: CallbackQuery, state: FSMContext = None):
+    print(f"🔴🔴🔴 КНОПКА {callback.data} нажата пользователем {callback.from_user.id}, is_admin={is_admin(callback.from_user.id)}, config['ADMIN_ID']={config['ADMIN_ID']}")
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
@@ -818,6 +823,7 @@ async def admin_status(callback: CallbackQuery, state: FSMContext = None):
 
 @dp.callback_query(lambda c: c.data == "admin_republish")
 async def admin_republish(callback: CallbackQuery, state: FSMContext = None):
+    print(f"🔴🔴🔴 КНОПКА {callback.data} нажата пользователем {callback.from_user.id}, is_admin={is_admin(callback.from_user.id)}, config['ADMIN_ID']={config['ADMIN_ID']}")
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
@@ -831,6 +837,7 @@ async def admin_republish(callback: CallbackQuery, state: FSMContext = None):
 
 @dp.callback_query(lambda c: c.data == "admin_old_posts")
 async def admin_old_posts(callback: CallbackQuery, state: FSMContext = None):
+    print(f"🔴🔴🔴 КНОПКА {callback.data} нажата пользователем {callback.from_user.id}, is_admin={is_admin(callback.from_user.id)}, config['ADMIN_ID']={config['ADMIN_ID']}")
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
@@ -839,6 +846,7 @@ async def admin_old_posts(callback: CallbackQuery, state: FSMContext = None):
 
 @dp.callback_query(lambda c: c.data == "admin_exit")
 async def admin_exit(callback: CallbackQuery, state: FSMContext = None):
+    print(f"🔴🔴🔴 КНОПКА {callback.data} нажата пользователем {callback.from_user.id}, is_admin={is_admin(callback.from_user.id)}, config['ADMIN_ID']={config['ADMIN_ID']}")
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ У вас нет прав", show_alert=True)
         return
