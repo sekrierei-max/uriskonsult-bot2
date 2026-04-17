@@ -863,9 +863,8 @@ async def admin_exit(callback: CallbackQuery, state: FSMContext = None):
 # ============================================
 
 @dp.message(Command("add_article"))
-@admin_only
+# @admin_only  ← УДАЛЕНО
 async def cmd_add_article(message: Message, state: FSMContext, **kwargs):
-    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     await message.answer(
         "📝 **Добавление новой статьи**\n\n"
         "**Шаг 1 из 5:** Введите ЗАГОЛОВОК тизера (для канала):"
@@ -877,9 +876,8 @@ async def cmd_add_article(message: Message, state: FSMContext, **kwargs):
 # ============================================
 
 @dp.message(Command("list_articles"))
-@admin_only
+# @admin_only  ← УДАЛЕНО
 async def cmd_list_articles(message: Message, **kwargs):
-    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     articles = await db.get_articles_list()
     if not articles:
         await message.answer("📭 Статей пока нет.")
@@ -894,9 +892,8 @@ async def cmd_list_articles(message: Message, **kwargs):
     await message.answer(response)
 
 @dp.message(Command("del_article"))
-@admin_only
+# @admin_only  ← УДАЛЕНО
 async def cmd_del_article(message: Message, **kwargs):
-    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     args = message.text.split()
     if len(args) != 2:
         await message.answer("❌ Использование: /del_article [ID]")
@@ -909,9 +906,8 @@ async def cmd_del_article(message: Message, **kwargs):
         await message.answer("❌ Ошибка при удалении.")
 
 @dp.message(Command("edit_article"))
-@admin_only
+# @admin_only  ← УДАЛЕНО
 async def cmd_edit_article(message: Message, **kwargs):
-    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     await message.answer("✏️ Редактирование пока в разработке.")
 
 # ============================================
@@ -919,9 +915,8 @@ async def cmd_edit_article(message: Message, **kwargs):
 # ============================================
 
 @dp.message(Command("status", "stats"))
-@admin_only
+# @admin_only  ← УДАЛЕНО
 async def cmd_status(message: Message, **kwargs):
-    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     articles = await db.get_articles_list()
     total_users = len(user_message_counts)
     total_messages = sum(user_message_counts.values())
@@ -952,9 +947,8 @@ async def cmd_status(message: Message, **kwargs):
 # КОМАНДА /republish
 # ============================================
 @dp.message(Command("republish"))
-@admin_only
+# @admin_only  ← УДАЛЕНО
 async def cmd_republish(message: Message, **kwargs):
-    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     try:
         parts = message.text.split()
         if len(parts) != 2:
@@ -992,9 +986,8 @@ async def cmd_republish(message: Message, **kwargs):
 # КОМАНДА /old_posts
 # ============================================
 @dp.message(Command("old_posts"))
-@admin_only
+# @admin_only  ← УДАЛЕНО
 async def cmd_old_posts(message: Message, **kwargs):
-    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     try:
         articles = await db.get_articles_list()
         old_posts = []
