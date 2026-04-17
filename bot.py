@@ -865,138 +865,13 @@ async def admin_exit(callback: CallbackQuery, state: FSMContext = None):
 @dp.message(Command("add_article"))
 @admin_only
 async def cmd_add_article(message: Message, state: FSMContext, **kwargs):
+    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     await message.answer(
         "📝 **Добавление новой статьи**\n\n"
         "**Шаг 1 из 5:** Введите ЗАГОЛОВОК тизера (для канала):"
     )
     await state.set_state(ArticleStates.teaser_title)
 
-@dp.message(ArticleStates.teaser_title)
-async def process_teaser_title(message: Message, state: FSMContext):
-    if not message.text:
-        await message.answer("❌ Пожалуйста, отправьте заголовок.")
-        return
-    await state.update_data(teaser_title=message.text.strip())
-    
-    await message.answer(
-        "📸 **Шаг 2 из 5:** Отправьте ФОТО для тизера\n\n"
-        "Фото будет прикреплено к посту в канале\n\n"
-        "Если не хотите добавлять фото — отправьте слово **пропустить**"
-    )
-    await state.set_state(ArticleStates.photo)
-
-@dp.message(ArticleStates.photo)
-async def process_article_photo(message: Message, state: FSMContext):
-    if message.photo:
-        photo_file_id = message.photo[-1].file_id
-        await state.update_data(photo_file_id=photo_file_id)
-        await message.answer("✅ Фото сохранено")
-    else:
-        if message.text and message.text.lower() in ['пропустить', 'skip', 'нет']:
-            await state.update_data(photo_file_id=None)
-            await message.answer("⚠️ Фото не добавлено. Продолжаем без фото.")
-        else:
-            await message.answer(
-                "❓ Непонятно. Отправьте ФОТО или напишите **пропустить**"
-            )
-            return
-    
-    await message.answer(
-        "📝 **Шаг 3 из 5:** Введите ТИЗЕР (короткий текст для канала):"
-    )
-    await state.set_state(ArticleStates.teaser_text)
-
-@dp.message(ArticleStates.teaser_text)
-async def process_teaser_text(message: Message, state: FSMContext):
-    if not message.text:
-        await message.answer("❌ Пожалуйста, отправьте текст тизера.")
-        return
-    await state.update_data(teaser_text=message.text.strip())
-    
-    await message.answer(
-        "📄 **Шаг 4 из 5:** Отправьте ПОЛНЫЙ текст статьи (для бота):"
-    )
-    await state.set_state(ArticleStates.full_text)
-
-@dp.message(ArticleStates.full_text)
-async def process_full_text(message: Message, state: FSMContext):
-    if not message.text:
-        await message.answer("❌ Пожалуйста, отправьте текст.")
-        return
-    
-    # Очищаем текст от метаданных
-    raw_text = message.text
-    lines = raw_text.split('\n')
-    cleaned_lines = []
-    
-    for line in lines:
-        if not (line.strip().startswith('[') and ']' in line and ':' in line):
-            cleaned_lines.append(line)
-    
-    cleaned_text = '\n'.join(cleaned_lines).strip()
-    
-    await state.update_data(full_text=cleaned_text)
-    
-    example = datetime.now() + timedelta(hours=1)
-    example_str = example.strftime("%d.%m.%Y %H:%M")
-    await message.answer(
-        "📅 **Шаг 5 из 5:** Укажите дату и время публикации тизера\n\n"
-        f"Формат: ДД.ММ.ГГГГ ЧЧ:ММ\n"
-        f"Например: {example_str}\n\n"
-        "🕐 Время указывается МСК"
-    )
-    await state.set_state(ArticleStates.time)
-@dp.message(ArticleStates.time)
-async def process_article_time(message: Message, state: FSMContext):
-    try:
-        msk_time = datetime.strptime(message.text.strip(), "%d.%m.%Y %H:%M")
-        now_msk = datetime.utcnow() + timedelta(hours=3)
-        
-        if msk_time < now_msk:
-            await message.answer(
-                f"❌ Нельзя указать время в прошлом!\n"
-                f"Текущее время МСК: {now_msk.strftime('%d.%m.%Y %H:%M')}\n"
-                f"Вы указали: {msk_time.strftime('%d.%m.%Y %H:%M')}"
-            )
-            return
-        
-        data = await state.get_data()
-        
-        # ПРОСТАЯ ДИАГНОСТИКА
-        print("=" * 50)
-        print("СОХРАНЕНИЕ СТАТЬИ")
-        print(f"teaser_title: {data.get('teaser_title')}")
-        print(f"teaser_text: {data.get('teaser_text')}")
-        print(f"full_text (первые 200 символов): {data.get('full_text', '')[:200]}")
-        print("=" * 50)
-        
-        # Сохраняем статью в БД
-        article_id = await db.add_article(
-            full_text=data['full_text'],
-            teaser_title=data['teaser_title'],
-            teaser_text=data['teaser_text'],
-            publish_time=msk_time,
-            photo_file_id=data.get('photo_file_id')
-        )
-        
-        deep_link = f"@uriskonsult_bot?start=article_{article_id}"
-        
-        response = f"✅ **Статья #{article_id} добавлена!**\n\n"
-        response += f"📌 Заголовок: {data['teaser_title']}\n"
-        response += f"📅 Публикация: {msk_time.strftime('%d.%m.%Y %H:%M')} МСК.\n"
-        response += f"🔗 Ссылка: {deep_link}\n"
-        
-        if data.get('photo_file_id'):
-            response += f"\n📸 Фото сохранено"
-        else:
-            response += f"\n⚠️ Статья без фото"
-        
-        await message.answer(response)
-        await state.clear()
-        
-    except ValueError:
-        await message.answer("❌ Неверный формат! Используйте ДД.ММ.ГГГГ ЧЧ:ММ")
-        
 # ============================================
 # КОМАНДЫ СПИСКА, УДАЛЕНИЯ, РЕДАКТИРОВАНИЯ
 # ============================================
@@ -1004,6 +879,7 @@ async def process_article_time(message: Message, state: FSMContext):
 @dp.message(Command("list_articles"))
 @admin_only
 async def cmd_list_articles(message: Message, **kwargs):
+    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     articles = await db.get_articles_list()
     if not articles:
         await message.answer("📭 Статей пока нет.")
@@ -1020,6 +896,7 @@ async def cmd_list_articles(message: Message, **kwargs):
 @dp.message(Command("del_article"))
 @admin_only
 async def cmd_del_article(message: Message, **kwargs):
+    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     args = message.text.split()
     if len(args) != 2:
         await message.answer("❌ Использование: /del_article [ID]")
@@ -1034,6 +911,7 @@ async def cmd_del_article(message: Message, **kwargs):
 @dp.message(Command("edit_article"))
 @admin_only
 async def cmd_edit_article(message: Message, **kwargs):
+    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     await message.answer("✏️ Редактирование пока в разработке.")
 
 # ============================================
@@ -1043,6 +921,7 @@ async def cmd_edit_article(message: Message, **kwargs):
 @dp.message(Command("status", "stats"))
 @admin_only
 async def cmd_status(message: Message, **kwargs):
+    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     articles = await db.get_articles_list()
     total_users = len(user_message_counts)
     total_messages = sum(user_message_counts.values())
@@ -1070,49 +949,12 @@ async def cmd_status(message: Message, **kwargs):
     logger.info(f"Admin {message.from_user.id} requested status")
 
 # ============================================
-# ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ КАНАЛА
-# ============================================
-@dp.message(Command("test_channel"))
-@admin_only
-async def cmd_test_channel(message: Message, **kwargs):
-    try:
-        print(f"🔍 ОТЛАДКА: config['CHANNEL_ID'] = {config['CHANNEL_ID']} (тип: {type(config['CHANNEL_ID']).__name__})")
-        logger.info(f"🔍 ОТЛАДКА: config['CHANNEL_ID'] = {config['CHANNEL_ID']} (тип: {type(config['CHANNEL_ID']).__name__})")
-        
-        channel = config['CHANNEL_ID']
-        
-        if str(channel).startswith('-100'):
-            channel_id = int(channel)
-            channel_type = "числовой ID"
-        else:
-            channel_id = "@" + channel
-            channel_type = "username"
-        
-        print(f"🔍 ОТЛАДКА: channel_id = {channel_id} (тип: {type(channel_id).__name__})")
-        logger.info(f"🔍 ОТЛАДКА: channel_id = {channel_id} (тип: {type(channel_id).__name__})")
-        
-        test_text = (
-            f"🧪 **Тестовое сообщение**\n\n"
-            f"Канал: {channel}\n"
-            f"Тип: {channel_type}\n"
-            f"Время: {datetime.now().strftime('%H:%M:%S')}"
-        )
-        
-        await bot.send_message(chat_id=channel_id, text=test_text)
-        await message.answer(f"✅ Сообщение отправлено в канал!\nТип: {channel_type}")
-        
-    except Exception as e:
-        error_msg = f"❌ Ошибка: {type(e).__name__}: {e}"
-        print(f"🔴 ОШИБКА: {error_msg}")
-        logger.error(error_msg)
-        await message.answer(error_msg)
-
-# ============================================
 # КОМАНДА /republish
 # ============================================
 @dp.message(Command("republish"))
 @admin_only
 async def cmd_republish(message: Message, **kwargs):
+    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     try:
         parts = message.text.split()
         if len(parts) != 2:
@@ -1147,60 +989,12 @@ async def cmd_republish(message: Message, **kwargs):
         await message.answer(f"❌ Ошибка: {e}")
 
 # ============================================
-# КОМАНДА /republish_deep
-# ============================================
-@dp.message(Command("republish_deep"))
-@admin_only
-async def cmd_republish_deep(message: Message, **kwargs):
-    try:
-        parts = message.text.split()
-        if len(parts) != 2:
-            available_keys = "\n".join([f"• {key}" for key in DEEP_ARTICLES.keys()])
-            await message.answer(
-                "❌ Неверный формат команды\n\n"
-                "Используйте: /republish_deep [ключ]\n\n"
-                f"Доступные ключи:\n{available_keys}\n\n"
-                f"Например: /republish_deep flood"
-            )
-            return
-        
-        key = parts[1]
-        
-        if key not in DEEP_ARTICLES:
-            await message.answer(
-                f"❌ Ключ '{key}' не найден.\n"
-                f"Доступные ключи: {', '.join(DEEP_ARTICLES.keys())}"
-            )
-            return
-        
-        full_text = DEEP_ARTICLES[key]
-        teaser_length = min(config.get('TEASER_LENGTH', 200), 300)
-        teaser_text = full_text[:teaser_length] + "...\n\n"
-        teaser_text += (
-            f"🔗 ЧИТАТЬ ПОЛНОСТЬЮ\n"
-            f"➡️ @uriskonsult_bot?start={key}\n\n"
-            f"👨‍⚖️ Нужна консультация?\n"
-            f"➡️ /consult"
-        )
-        
-        if str(config['CHANNEL_ID']).startswith('-100'):
-            channel = int(config['CHANNEL_ID'])
-        else:
-            channel = "@" + config['CHANNEL_ID']
-            
-        await bot.send_message(chat_id=channel, text=teaser_text)
-        await message.answer(f"✅ Пост для статьи '{key}' успешно опубликован в канале!")
-        
-    except Exception as e:
-        logger.error(f"Error in republish_deep: {e}")
-        await message.answer(f"❌ Ошибка: {e}")
-
-# ============================================
 # КОМАНДА /old_posts
 # ============================================
 @dp.message(Command("old_posts"))
 @admin_only
 async def cmd_old_posts(message: Message, **kwargs):
+    message.from_user.id = 1254541060  # ← ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ID АДМИНА
     try:
         articles = await db.get_articles_list()
         old_posts = []
@@ -1225,7 +1019,7 @@ async def cmd_old_posts(message: Message, **kwargs):
     except Exception as e:
         logger.error(f"Error in old_posts: {e}")
         await message.answer(f"❌ Ошибка: {e}")
-
+        
 # ============================================
 # ОБРАБОТЧИКИ КНОПОК
 # ============================================
