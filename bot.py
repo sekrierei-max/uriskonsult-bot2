@@ -456,11 +456,11 @@ DEEP_ARTICLES = {
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ============================================
 def is_admin(user_id: int) -> bool:
-    return user_id == config['ADMIN_ID']
+    return str(user_id) == str(config['ADMIN_ID'])
 
 def admin_only(func):
     async def wrapper(message: Message, *args, **kwargs):
-        if message.from_user.id != config['ADMIN_ID']:
+        if str(message.from_user.id) != str(config['ADMIN_ID']):
             await message.answer("⛔ У вас нет прав для выполнения этой команды.")
             logger.warning(f"Unauthorized access attempt by user {message.from_user.id}")
             return
