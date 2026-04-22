@@ -566,19 +566,46 @@ async def send_welcome_post(message: Message, source: str = "send_welcome_post")
 @dp.message(CommandStart(deep_link=True))
 async def cmd_start_deep_link(message: Message, command: CommandObject):
     args = command.args
-    print(f"🔍 ДИАГНОСТИКА: получен args = {args}")
-    logger.info(f"🔍 ДИАГНОСТИКА: получен args = {args}")
+    logger.info(f"🔍 Deep link args: {args}, User: {message.from_user.id}")
     
     if args and args.startswith('article_'):
         try:
             article_id = int(args.replace('article_', ''))
-            print(f"🔍 ДИАГНОСТИКА: ищем статью #{article_id}")
-            logger.info(f"🔍 ДИАГНОСТИКА: ищем статью #{article_id}")
+            logger.info(f"🔍 Ищем статью ID={article_id}")
             
-            article = await db.get_article(article_id)
+            # ✅ ИСПРАВЛЕНИЕ: Используем ПРЯМОЙ SQL-запрос без фильтрации
+            # Это гарантирует, что мы найдём статью, даже если get_article() не работает
+            try:
+                # Пробуем стандартный метод
+                article = await db.get_article(article_id)
+            except Exception as e:
+                logger.warning(f"⚠️ get_article не сработал: {e}, пробуем прямой запрос")
+                article = None
             
-            print(f"🔍 ДИАГНОСТИКА: результат get_article = {article is not None}")
-            logger.info(f"🔍 ДИАГНОСТИКА: результат get_article = {article is not None}")
+            # Если стандартный метод не нашёл — пробуем прямой запрос к БД
+            if not article:
+                try:
+                    # Получаем сырое подключение к БД
+                    conn = await db.get_connection()
+                    cursor = await conn.execute(
+                        "SELECT * FROM articles WHERE id = ?", 
+                        (article_id,)
+                    )
+                    row = await cursor.fetchone()
+                    if row:
+                        # Преобразуем строку в словарь
+                        article = {
+                            'id': row[0],
+                            'teaser_title': row[1],
+                            'teaser_text': row[2],
+                            'full_text': row[3],
+                            'teaser_time': row[4],
+                            'published': row[5],
+                            'photo_file_id': row[6] if len(row) > 6 else None
+                        }
+                        logger.info(f"✅ Статья найдена прямым запросом: ID={article_id}")
+                except Exception as direct_error:
+                    logger.error(f"❌ Ошибка прямого запроса: {direct_error}")
             
             if article:
                 teaser_title = article.get('teaser_title', 'Статья')
@@ -596,23 +623,22 @@ async def cmd_start_deep_link(message: Message, command: CommandObject):
                 ])
                 
                 await message.answer(bot_text, parse_mode="HTML", reply_markup=keyboard)
-                print(f"✅ Статья #{article_id} успешно отправлена")
+                logger.info(f"✅ Статья #{article_id} отправлена пользователю {message.from_user.id}")
             else:
-                print(f"❌ Статья #{article_id} не найдена в БД")
+                logger.warning(f"❌ Статья #{article_id} НЕ НАЙДЕНА в БД")
                 await message.answer("❌ Статья не найдена или была удалена.")
                 
         except ValueError:
             await message.answer("❌ Неверная ссылка на статью.")
         except Exception as e:
-            print(f"❌ Ошибка: {e}")
-            logger.error(f"Error in deep link: {e}")
+            logger.error(f"❌ Ошибка в deep link: {e}")
             await message.answer("❌ Произошла ошибка при загрузке статьи.")
     
     elif args == 'consult':
         await cmd_consult(message)
     else:
         await cmd_start(message)
-
+        
 # ============================================
 # КОМАНДА /start (обычный)
 # ============================================
