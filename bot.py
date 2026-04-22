@@ -872,44 +872,125 @@ async def cmd_add_article(message: Message, state: FSMContext, **kwargs):
     await state.set_state(ArticleStates.teaser_title)
 
 # ============================================
-# КОМАНДЫ СПИСКА, УДАЛЕНИЯ, РЕДАКТИРОВАНИЯ
+# ОБРАБОТЧИКИ СОСТОЯНИЙ ДЛЯ ДОБАВЛЕНИЯ СТАТЬИ
 # ============================================
 
-@dp.message(Command("list_articles"))
-# @admin_only  ← УДАЛЕНО
-async def cmd_list_articles(message: Message, **kwargs):
-    articles = await db.get_articles_list()
-    if not articles:
-        await message.answer("📭 Статей пока нет.")
+@dp.message(ArticleStates.teaser_title)
+async def process_teaser_title(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Пожалуйста, отправьте заголовок.")
         return
-    response = "📚 **Список статей:**\n\n"
-    for article in articles[:10]:
-        deep_link = f"@uriskonsult_bot?start=article_{article['id']}"
-        response += f"🔹 **ID {article['id']}**\n"
-        response += f"📌 Заголовок: {article.get('teaser_title', 'Без заголовка')}\n"
-        response += f"📝 {article.get('full_text', '')[:50]}...\n"
-        response += f"🔗 {deep_link}\n\n"
-    await message.answer(response)
+    await state.update_data(teaser_title=message.text.strip())
+    
+    await message.answer(
+        "📸 **Шаг 2 из 5:** Отправьте ФОТО для тизера\n\n"
+        "Фото будет прикреплено к посту в канале\n\n"
+        "Если не хотите добавлять фото — отправьте слово **пропустить**"
+    )
+    await state.set_state(ArticleStates.photo)
 
-@dp.message(Command("del_article"))
-# @admin_only  ← УДАЛЕНО
-async def cmd_del_article(message: Message, **kwargs):
-    args = message.text.split()
-    if len(args) != 2:
-        await message.answer("❌ Использование: /del_article [ID]")
+@dp.message(ArticleStates.photo)
+async def process_article_photo(message: Message, state: FSMContext):
+    if message.photo:
+        photo_file_id = message.photo[-1].file_id
+        await state.update_data(photo_file_id=photo_file_id)
+        await message.answer("✅ Фото сохранено")
+    else:
+        if message.text and message.text.lower() in ['пропустить', 'skip', 'нет']:
+            await state.update_data(photo_file_id=None)
+            await message.answer("⚠️ Фото не добавлено. Продолжаем без фото.")
+        else:
+            await message.answer(
+                "❓ Непонятно. Отправьте ФОТО или напишите **пропустить**"
+            )
+            return
+    
+    await message.answer(
+        "📝 **Шаг 3 из 5:** Введите ТИЗЕР (короткий текст для канала):"
+    )
+    await state.set_state(ArticleStates.teaser_text)
+
+@dp.message(ArticleStates.teaser_text)
+async def process_teaser_text(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Пожалуйста, отправьте текст тизера.")
         return
+    await state.update_data(teaser_text=message.text.strip())
+    
+    await message.answer(
+        "📄 **Шаг 4 из 5:** Отправьте ПОЛНЫЙ текст статьи (для бота):"
+    )
+    await state.set_state(ArticleStates.full_text)
+
+@dp.message(ArticleStates.full_text)
+async def process_full_text(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Пожалуйста, отправьте текст.")
+        return
+    
+    raw_text = message.text
+    lines = raw_text.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        if not (line.strip().startswith('[') and ']' in line and ':' in line):
+            cleaned_lines.append(line)
+    
+    cleaned_text = '\n'.join(cleaned_lines).strip()
+    
+    await state.update_data(full_text=cleaned_text)
+    
+    example = datetime.now() + timedelta(hours=1)
+    example_str = example.strftime("%d.%m.%Y %H:%M")
+    await message.answer(
+        "📅 **Шаг 5 из 5:** Укажите дату и время публикации тизера\n\n"
+        f"Формат: ДД.ММ.ГГГГ ЧЧ:ММ\n"
+        f"Например: {example_str}\n\n"
+        "🕐 Время указывается МСК"
+    )
+    await state.set_state(ArticleStates.time)
+
+@dp.message(ArticleStates.time)
+async def process_article_time(message: Message, state: FSMContext):
     try:
-        article_id = int(args[1])
-        await db.delete_article(article_id)
-        await message.answer(f"✅ Статья #{article_id} удалена.")
-    except:
-        await message.answer("❌ Ошибка при удалении.")
-
-@dp.message(Command("edit_article"))
-# @admin_only  ← УДАЛЕНО
-async def cmd_edit_article(message: Message, **kwargs):
-    await message.answer("✏️ Редактирование пока в разработке.")
-
+        msk_time = datetime.strptime(message.text.strip(), "%d.%m.%Y %H:%M")
+        now_msk = datetime.utcnow() + timedelta(hours=3)
+        
+        if msk_time < now_msk:
+            await message.answer(
+                f"❌ Нельзя указать время в прошлом!\n"
+                f"Текущее время МСК: {now_msk.strftime('%d.%m.%Y %H:%M')}\n"
+                f"Вы указали: {msk_time.strftime('%d.%m.%Y %H:%M')}"
+            )
+            return
+        
+        data = await state.get_data()
+        
+        article_id = await db.add_article(
+            full_text=data['full_text'],
+            teaser_title=data['teaser_title'],
+            teaser_text=data['teaser_text'],
+            publish_time=msk_time,
+            photo_file_id=data.get('photo_file_id')
+        )
+        
+        deep_link = f"@uriskonsult_bot?start=article_{article_id}"
+        
+        response = f"✅ **Статья #{article_id} добавлена!**\n\n"
+        response += f"📌 Заголовок: {data['teaser_title']}\n"
+        response += f"📅 Публикация: {msk_time.strftime('%d.%m.%Y %H:%M')} МСК.\n"
+        response += f"🔗 Ссылка: {deep_link}\n"
+        
+        if data.get('photo_file_id'):
+            response += f"\n📸 Фото сохранено"
+        else:
+            response += f"\n⚠️ Статья без фото"
+        
+        await message.answer(response)
+        await state.clear()
+        
+    except ValueError:
+        await message.answer("❌ Неверный формат! Используйте ДД.ММ.ГГГГ ЧЧ:ММ")
 # ============================================
 # КОМАНДЫ СТАТУСА
 # ============================================
