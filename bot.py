@@ -710,7 +710,6 @@ async def cmd_calculate(message: Message):
 # КОМАНДА /clear_limits
 # ============================================
 @dp.message(Command("clear_limits"))
-@admin_only
 async def cmd_clear_limits(message: Message, **kwargs):
     user_message_counts.clear()
     user_last_reset.clear()
